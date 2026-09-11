@@ -90,8 +90,12 @@ def parse_since(args: argparse.Namespace, now: dt.datetime | None = None) -> dt.
             hh, mm = map(int, args.since.split(":"))
         except ValueError:
             sys.exit(f"--since 需要 HH:MM 格式，收到: {args.since!r}")
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            sys.exit(f"--since 超出范围（小时 0-23、分钟 0-59）: {args.since!r}")
         return most_recent(hh, mm, now)
-    if args.hours:
+    if args.hours is not None:
+        if args.hours <= 0:
+            sys.exit(f"--hours 需要正数，收到: {args.hours:g}")
         return now - dt.timedelta(hours=args.hours)
     # 夜班工具的默认窗口 = 夜班窗口起点（AGENTS.md：23:05–08:05）。
     # 早上生成记录时取昨夜 23:05，避免"当天 00:00"漏掉前半夜的提交。
@@ -319,10 +323,17 @@ def render(repo: Path, repo_name: str, shift_title: str, moment: dt.datetime,
     return "\n".join(buf) + "\n"
 
 
+def sanitize_filename_part(title: str) -> str:
+    """把班次标题净化成安全的文件名片段（Windows 保留字符、换行等）。"""
+    cleaned = re.sub(r'[\\/:*?"<>|\r\n\t]+', "-", title).strip().strip(".")
+    return cleaned or "夜班"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成夜班交班记录")
-    parser.add_argument("--since", help="起点时间 HH:MM（取该时刻最近一次出现，支持跨午夜班次）")
-    parser.add_argument("--hours", type=float, help="覆盖最近 N 小时")
+    window = parser.add_mutually_exclusive_group()
+    window.add_argument("--since", help="起点时间 HH:MM（取该时刻最近一次出现，支持跨午夜班次）")
+    window.add_argument("--hours", type=float, help="覆盖最近 N 小时")
     parser.add_argument("--out", default="handoff",
                         help="输出目录（默认 handoff/，与仓库交接目录一致）")
     parser.add_argument("--title", default="夜班", help="班次标题（如：夜班C）")
@@ -335,6 +346,10 @@ def main() -> None:
                               "不带值时按 --title 推导（夜班C → "
                               "night-shift-c-handoff.md），也可显式给相对路径"))
     args = parser.parse_args()
+
+    if args.stdout and args.append:
+        print("警告：--stdout 与 --append 同时给出，本次只打印、不写入任何文档。",
+              file=sys.stderr)
 
     repo = Path.cwd()
     try:
@@ -386,7 +401,7 @@ def main() -> None:
         print(f"其中 {len(JUDGEMENT_SECTIONS)} 个判断类章节为 TODO，需人工补全。")
         return
 
-    filename = f"{moment:%Y-%m-%d}-{args.title.replace('：', '-')}.md"
+    filename = f"{moment:%Y-%m-%d}-{sanitize_filename_part(args.title)}.md"
     out_path = out_dir / filename
     # 同一时段重复生成时不覆盖旧记录
     counter = 1

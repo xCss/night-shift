@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from shift_report import run_git  # noqa: E402
+from shift_report import _parse_status_text, run_git  # noqa: E402
 
 
 def last_commit_time(repo: Path) -> dt.datetime | None:
@@ -39,14 +39,14 @@ def last_commit_time(repo: Path) -> dt.datetime | None:
     return parsed.astimezone().replace(tzinfo=None)
 
 
-def describe_staleness(last: dt.datetime,
-                       now: dt.datetime) -> tuple[str, bool]:
-    """返回 (人读描述, 是否疑似并发活动)。阈值：15 分钟。"""
+def describe_staleness(last: dt.datetime, now: dt.datetime,
+                       warn_minutes: int = 15) -> tuple[str, bool]:
+    """返回 (人读描述, 是否疑似并发活动)。阈值：warn_minutes 分钟内。"""
     delta = now - last
     minutes = int(delta.total_seconds() // 60)
     if minutes < 0:
         return f"未来时间戳（{last:%H:%M}），系统时钟或提交时间异常", True
-    recent = minutes <= 15
+    recent = minutes < warn_minutes
     if minutes < 1:
         desc = "1 分钟内"
     elif minutes < 60:
@@ -61,6 +61,8 @@ def main() -> None:
     parser.add_argument("--warn-minutes", type=int, default=15,
                         help="最后提交距今多少分钟内视为疑似并发活动（默认 15）")
     args = parser.parse_args()
+    if args.warn_minutes < 1:
+        sys.exit(f"--warn-minutes 需要正整数，收到: {args.warn_minutes}")
 
     repo = Path.cwd()
     try:
@@ -79,22 +81,17 @@ def main() -> None:
     if last is None:
         print("最后提交：（无）")
     else:
-        desc, recent = describe_staleness(last, now)
+        desc, recent = describe_staleness(last, now, args.warn_minutes)
         print(f"最后提交：{last:%H:%M}（{desc}）")
         if recent:
             print(f"⚠️  最后提交距今不足 {args.warn_minutes} 分钟："
                   "疑似有并行班次正在工作。开工前重新读取仓库状态，"
                   "编辑文件前先读最新版本，避免踩踏。")
 
-    staged, unstaged = [], []
-    for line in run_git(repo, "status", "--porcelain").splitlines():
-        if not line.strip():
-            continue
-        status, path = line[:2], line[3:].strip()
-        if status[0] not in (" ", "?"):
-            staged.append(f"{status} {path}")
-        else:
-            unstaged.append(f"{status} {path}")
+    # 与 shift_report._parse_status_text 保持同一套判定（单一事实源），
+    # 避免 AM/MM 这类"已暂存+工作区又改"的条目被漏报
+    staged, unstaged = _parse_status_text(
+        run_git(repo, "status", "--porcelain"))
 
     if staged or unstaged:
         print(f"未提交改动：{len(staged) + len(unstaged)} 项")

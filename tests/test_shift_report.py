@@ -52,6 +52,17 @@ class ParseSinceTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             shift_report.parse_since(args)
 
+    def test_since_hour_out_of_range_exits(self) -> None:
+        # 数字上合法但时间上越界（24:00）也应友好报错而非 traceback
+        args = type("A", (), {"since": "24:00", "hours": None})()
+        with self.assertRaises(SystemExit):
+            shift_report.parse_since(args)
+
+    def test_since_minute_out_of_range_exits(self) -> None:
+        args = type("A", (), {"since": "12:99", "hours": None})()
+        with self.assertRaises(SystemExit):
+            shift_report.parse_since(args)
+
     def test_since_crosses_midnight(self) -> None:
         # 夜班场景：早上 08:00 写 --since "23:05" 应指昨夜的 23:05
         now = dt.datetime(2026, 9, 12, 8, 0)
@@ -71,6 +82,33 @@ class ParseSinceTests(unittest.TestCase):
         args = type("A", (), {"since": None, "hours": 8.0})()
         got = shift_report.parse_since(args)
         self.assertLessEqual(got, dt.datetime.now() - dt.timedelta(hours=7.9))
+
+    def test_hours_zero_exits(self) -> None:
+        # 0 是假值：旧实现会静默回落到默认 23:05 窗口，必须显式报错
+        args = type("A", (), {"since": None, "hours": 0})()
+        with self.assertRaises(SystemExit):
+            shift_report.parse_since(args)
+
+    def test_hours_negative_exits(self) -> None:
+        # 负数会产出"未来起点"的空报告，把参数错误伪装成正常空班次
+        args = type("A", (), {"since": None, "hours": -5.0})()
+        with self.assertRaises(SystemExit):
+            shift_report.parse_since(args)
+
+
+class SanitizeTests(unittest.TestCase):
+    def test_sanitize_filename_part(self) -> None:
+        # Windows 保留字符（半角冒号、斜杠等）不能进文件名
+        self.assertEqual(shift_report.sanitize_filename_part("夜班C: x/y"),
+                         "夜班C- x-y")
+        self.assertEqual(shift_report.sanitize_filename_part('a*b?"c'),
+                         "a-b-c")
+        self.assertEqual(shift_report.sanitize_filename_part("夜班C：无聊"),
+                         "夜班C：无聊")  # 全角冒号合法，原样保留
+
+    def test_sanitize_empty_or_dots_falls_back(self) -> None:
+        self.assertEqual(shift_report.sanitize_filename_part(""), "夜班")
+        self.assertEqual(shift_report.sanitize_filename_part("..."), "夜班")
 
 
 class NumstatTests(unittest.TestCase):
@@ -95,6 +133,19 @@ class StatusTests(unittest.TestCase):
 
     def test_parse_empty(self) -> None:
         self.assertEqual(shift_report._parse_status_text(""), ([], []))
+
+    def test_parse_staged_plus_worktree_entries(self) -> None:
+        # AM/MM = 已暂存后又改：应同时出现在两个清单里；
+        # 纯暂存重命名（R ）只进已暂存，不进工作区
+        out = "AM a.txt\nMM b.txt\nR  c.txt -> d.txt\n M e.txt\n"
+        staged, unstaged = shift_report._parse_status_text(out)
+        self.assertIn("AM a.txt", staged)
+        self.assertIn("AM a.txt", unstaged)
+        self.assertIn("MM b.txt", staged)
+        self.assertIn("MM b.txt", unstaged)
+        self.assertTrue(any(s.startswith("R ") for s in staged))
+        self.assertNotIn("R  c.txt -> d.txt", unstaged)
+        self.assertIn(" M e.txt", unstaged)
 
 
 class RepoIntegrationTests(unittest.TestCase):
@@ -231,6 +282,23 @@ class ShiftStartTests(unittest.TestCase):
             self.assertIsNotNone(last)
             self.assertIsNone(last.tzinfo)  # 必须是朴素时间，避免相减报错
             self.assertLessEqual(last, dt.datetime.now())
+
+    def test_staleness_custom_threshold_is_honored(self) -> None:
+        # --warn-minutes 必须真实参与判定，而不只是改提示文案
+        now = dt.datetime(2026, 9, 11, 23, 40)
+        last = dt.datetime(2026, 9, 11, 23, 20)  # 20 分钟前
+        self.assertTrue(shift_start.describe_staleness(
+            last, now, warn_minutes=30)[1])
+        self.assertFalse(shift_start.describe_staleness(
+            last, now, warn_minutes=15)[1])
+
+    def test_staleness_exactly_threshold_not_recent(self) -> None:
+        # "不足 N 分钟"是开区间：恰好 15 分钟前不应报警
+        now = dt.datetime(2026, 9, 11, 23, 40)
+        desc, recent = shift_start.describe_staleness(
+            dt.datetime(2026, 9, 11, 23, 25), now)
+        self.assertFalse(recent)
+        self.assertEqual(desc, "15 分钟前")
 
 
 class AppendTests(unittest.TestCase):
