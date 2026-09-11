@@ -56,6 +56,27 @@ def describe_staleness(last: dt.datetime, now: dt.datetime,
     return desc, recent
 
 
+def remote_sync_status(repo: Path, branch: str) -> str | None:
+    """返回与 origin 上游的差距描述；无上游/无远程时返回 None。"""
+    out = run_git(repo, "rev-list", "--left-right", "--count",
+                  f"origin/{branch}...{branch}", check=False).strip()
+    if not out:
+        return None
+    try:
+        behind_s, ahead_s = out.split()
+        behind, ahead = int(behind_s), int(ahead_s)
+    except ValueError:
+        return None
+    if behind == 0 and ahead == 0:
+        return "与远程同步"
+    parts = []
+    if ahead:
+        parts.append(f"本地领先 {ahead} 个提交（未 push）")
+    if behind:
+        parts.append(f"远程领先 {behind} 个提交（本地落后）")
+    return "；".join(parts)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="夜班开工自检（只读）")
     parser.add_argument("--warn-minutes", type=int, default=15,
@@ -76,6 +97,13 @@ def main() -> None:
 
     print(f"开工自检  {now:%Y-%m-%d %H:%M}")
     print(f"分支 {branch} @ {head}")
+
+    sync = remote_sync_status(repo, branch)
+    if sync:
+        print(f"远程状态：{sync}")
+        if "未 push" in sync:
+            print("⚠️  本地提交尚未 push：CI 不会运行，其他机器看不到这些工作。"
+                  "是否 push 见长期记忆待确认事项。")
 
     last = last_commit_time(repo)
     if last is None:

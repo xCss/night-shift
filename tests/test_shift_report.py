@@ -313,6 +313,12 @@ class ProtocolAlignmentTests(unittest.TestCase):
 class ShiftStartTests(unittest.TestCase):
     """shift_start.py：开工自检的时间新鲜度判定与集成。"""
 
+    def test_remote_sync_no_upstream_returns_none(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            self.assertIsNone(
+                shift_start.remote_sync_status(repo, "main"))
+
     def test_staleness_recent(self) -> None:
         now = dt.datetime(2026, 9, 11, 23, 40)
         desc, recent = shift_start.describe_staleness(
