@@ -153,5 +153,24 @@ class RenderTests(unittest.TestCase):
         self.assertIn("本班次无提交", md)
 
 
+class ProtocolAlignmentTests(unittest.TestCase):
+    """校验章节与 AGENTS.md 交班记录协议要求的字段保持对齐。"""
+
+    def test_protocol_required_sections_present(self) -> None:
+        for section in shift_report.PROTOCOL_REQUIRED_SECTIONS:
+            self.assertIn(section, shift_report.SECTIONS)
+            self.assertIn(section, shift_report.JUDGEMENT_SECTIONS)
+
+    def test_render_includes_protocol_sections(self) -> None:
+        md = shift_report.render(
+            Path("."), "demo", "夜班B", dt.datetime(2026, 9, 11, 23, 30),
+            dt.datetime(2026, 9, 11, 20, 0), "main", "abc1234",
+            commits=[], files=[], added=0, deleted=0,
+            staged=[], unstaged=[], test_cmd=None,
+        )
+        for section in shift_report.PROTOCOL_REQUIRED_SECTIONS:
+            self.assertIn(f"## {section}", md)
+
+
 if __name__ == "__main__":
     unittest.main()
