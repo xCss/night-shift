@@ -135,6 +135,21 @@ def collect_commits(repo: Path, since_iso: str) -> list[dict]:
     return commits
 
 
+def _expand_numstat_rename(path: str) -> list[str]:
+    """展开 numstat 重命名条目，返回新旧两个路径。
+
+    git 对重命名有两种形态：'old => new' 与括号式 'dir/{old => new}/f.txt'。
+    """
+    if " => " not in path:
+        return [path]
+    brace = re.match(r"^(.*)\{(.*) => (.*)\}(.*)$", path)
+    if brace:
+        pre, old, new, post = brace.groups()
+        return [pre + old + post, pre + new + post]
+    old, new = (p.strip() for p in path.split(" => ", 1))
+    return [old, new]
+
+
 def _parse_numstat_text(out: str) -> tuple[list[str], int, int]:
     """解析 git log --numstat 输出，返回 (文件列表, 新增行, 删除行)。"""
     files: dict[str, None] = {}
@@ -147,7 +162,8 @@ def _parse_numstat_text(out: str) -> tuple[list[str], int, int]:
         if not match:
             continue
         a, d, path = match.groups()
-        files[path] = None
+        for f in _expand_numstat_rename(path):
+            files[f] = None
         if a != "-":
             added += int(a)
         if d != "-":
@@ -381,6 +397,9 @@ def main() -> None:
         run_git(repo, "rev-parse", "--git-dir")
     except RuntimeError:
         sys.exit("当前目录不是 git 仓库，工具无法工作。")
+    # 相对路径（--out/--append）一律以仓库根为基准，与"必须是仓库内的
+    # 相对路径"的报错文案一致：在仓库子目录里运行时同样可用
+    repo_root = Path(run_git(repo, "rev-parse", "--show-toplevel").strip())
 
     moment = dt.datetime.now()
     since = parse_since(args)
@@ -400,9 +419,9 @@ def main() -> None:
         print(markdown)
         return
 
-    out_dir = (repo / args.out).resolve()
+    out_dir = (repo_root / args.out).resolve()
     try:
-        out_dir.relative_to(repo.resolve())
+        out_dir.relative_to(repo_root.resolve())
     except ValueError:
         sys.exit(f"--out 必须是仓库内的相对路径，收到: {args.out!r}")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -414,15 +433,15 @@ def main() -> None:
                 sys.exit(f"--append 无法从标题 {args.title!r} 推导班次文档，"
                          "请用 --append <相对路径> 显式指定。")
         else:
-            target = (repo / args.append).resolve()
+            target = (repo_root / args.append).resolve()
             try:
-                target.relative_to(repo.resolve())
+                target.relative_to(repo_root.resolve())
             except ValueError:
                 sys.exit(f"--append 必须是仓库内的相对路径，收到: {args.append!r}")
         created = append_to_handoff(
             target, markdown, f"## {moment:%Y-%m-%d} {args.title}")
         action = "已创建" if created else "已追加新章节"
-        print(f"交班记录{action}: {target.relative_to(repo)}")
+        print(f"交班记录{action}: {target.relative_to(repo_root)}")
         print(f"其中 {len(JUDGEMENT_SECTIONS)} 个判断类章节为 TODO，需人工补全。")
         return
 
@@ -434,7 +453,7 @@ def main() -> None:
         counter += 1
         out_path = out_dir / f"{out_path.stem}-{counter}{out_path.suffix}"
     out_path.write_text(markdown, encoding="utf-8")
-    print(f"交班记录已生成: {out_path.relative_to(repo)}")
+    print(f"交班记录已生成: {out_path.relative_to(repo_root)}")
     print(f"其中 {len(JUDGEMENT_SECTIONS)} 个判断类章节为 TODO，需人工补全。")
 
 

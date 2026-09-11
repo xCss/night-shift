@@ -122,6 +122,33 @@ class NumstatTests(unittest.TestCase):
     def test_parse_empty(self) -> None:
         self.assertEqual(shift_report._parse_numstat_text(""), ([], 0, 0))
 
+    def test_parse_rename_entries(self) -> None:
+        # 重命名条目应展开为新旧两个路径，而不是原样当文件名展示
+        out = "\x00\n3\t1\told.txt => new.txt\n\x00\n" \
+              "2\t0\tdir/{a => b}/f.txt\n\x00\n"
+        files, added, deleted = shift_report._parse_numstat_text(out)
+        self.assertEqual(files, ["dir/a/f.txt", "dir/b/f.txt",
+                                 "new.txt", "old.txt"])
+        self.assertEqual((added, deleted), (5, 1))
+
+
+class AutoFillTests(unittest.TestCase):
+    """auto_fill_tests：测试命令执行与结果渲染。"""
+
+    def test_success_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            text = shift_report.auto_fill_tests("echo hello", repo)
+            self.assertIn("✅ 通过", text)
+            self.assertIn("hello", text)
+
+    def test_failing_command_shows_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            text = shift_report.auto_fill_tests("git --no-such-flag", repo)
+            self.assertIn("❌ 失败", text)
+            self.assertIn("129", text)
+
 
 class StatusTests(unittest.TestCase):
     def test_parse_staged_and_untracked(self) -> None:
@@ -202,6 +229,21 @@ class RepoIntegrationTests(unittest.TestCase):
     def test_run_cmd_failure(self) -> None:
         code, _ = shift_report.run_cmd("exit 7", self.repo)
         self.assertEqual(code, 7)
+
+    def test_out_dir_is_relative_to_repo_root_from_subdir(self) -> None:
+        # 在仓库子目录里运行时，--out 仍以仓库根为基准（与报错文案一致）
+        script = (Path(__file__).resolve().parent.parent
+                  / "tools" / "shift_report.py")
+        (self.repo / "sub").mkdir()
+        result = subprocess.run(
+            [sys.executable, str(script), "--hours", "1",
+             "--title", "夜班T", "--out", "handoff"],
+            cwd=self.repo / "sub", capture_output=True, text=True,
+            encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        handoff = self.repo / "handoff"
+        self.assertTrue(handoff.is_dir(), result.stdout)
+        self.assertTrue(any("夜班T" in p.name for p in handoff.iterdir()))
 
 
 class RenderTests(unittest.TestCase):
