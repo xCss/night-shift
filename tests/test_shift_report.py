@@ -221,5 +221,68 @@ class ShiftStartTests(unittest.TestCase):
             self.assertLessEqual(last, dt.datetime.now())
 
 
+class AppendTests(unittest.TestCase):
+    """--append 模式：追加进持续交接文档而不是新建按日期文件。"""
+
+    def test_derive_handoff_path(self) -> None:
+        out = Path("handoff")
+        self.assertEqual(shift_report.derive_handoff_path("夜班C", out),
+                         out / "night-shift-c-handoff.md")
+        self.assertEqual(shift_report.derive_handoff_path("夜班B：棋手联赛", out),
+                         out / "night-shift-b-handoff.md")
+        self.assertIsNone(shift_report.derive_handoff_path("值班", out))
+
+    def test_demote_headings(self) -> None:
+        md = "# T\n\n## A\n\n### B\n\ntext"
+        self.assertEqual(shift_report.demote_headings(md),
+                         "# T\n\n### A\n\n#### B\n\ntext")
+
+    def _sample_markdown(self) -> str:
+        return ("# 夜班C 交班记录\n"
+                "\n"
+                "- 班次日期：2026-09-11 23:00\n"
+                "\n"
+                "## 今晚发现\n"
+                "\n"
+                "- x\n"
+                "\n"
+                "---\n"
+                "*生成*")
+
+    def test_append_creates_file_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "night-shift-c-handoff.md"
+            created = shift_report.append_to_handoff(
+                target, self._sample_markdown(), "## 2026-09-11 夜班C")
+            self.assertTrue(created)
+            text = target.read_text(encoding="utf-8")
+            self.assertIn("# 夜班C 交班记录", text)
+
+    def test_append_inserts_newest_section_on_top(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "night-shift-c-handoff.md"
+            target.write_text(
+                "# 夜班C交班记录\n"
+                "> 简介\n"
+                "\n"
+                "---\n"
+                "\n"
+                "## 2026-09-10 旧章节\n"
+                "\n"
+                "- 旧内容\n",
+                encoding="utf-8")
+            created = shift_report.append_to_handoff(
+                target, self._sample_markdown(), "## 2026-09-11 夜班C")
+            self.assertFalse(created)
+            text = target.read_text(encoding="utf-8")
+            new_pos = text.index("## 2026-09-11 夜班C")
+            old_pos = text.index("## 2026-09-10 旧章节")
+            self.assertLess(new_pos, old_pos)
+            # 嵌入内容降级：## 今晚发现 → ### 今晚发现（行级匹配，避免子串误判）
+            self.assertIn("### 今晚发现", text)
+            self.assertNotIn("\n## 今晚发现", text)
+            self.assertIn("- 旧内容", text)  # 既有内容保留
+
+
 if __name__ == "__main__":
     unittest.main()

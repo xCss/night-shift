@@ -9,11 +9,12 @@
 未提交状态、测试结果）直接填好，判断类的部分留成待填占位符。
 
 用法：
-    python tools/shift_report.py                     # 覆盖今天 00:00 以来的活动
+    python tools/shift_report.py                     # 覆盖最近一次 23:05（夜班窗口起点）以来
     python tools/shift_report.py --hours 8           # 覆盖最近 8 小时
     python tools/shift_report.py --since "23:05"     # 覆盖最近一次 23:05 以来（跨午夜安全）
     python tools/shift_report.py --test "python -m pytest -q"
     python tools/shift_report.py --out handoff --title "夜班C：无聊发明"
+    python tools/shift_report.py --append --title "夜班C"   # 追加进持续交接文档
 
 仅依赖标准库；只在 git 仓库内运行，输出默认写入 handoff/ 目录（与仓库
 交接目录约定一致）。
@@ -88,15 +89,24 @@ def parse_since(args: argparse.Namespace, now: dt.datetime | None = None) -> dt.
             hh, mm = map(int, args.since.split(":"))
         except ValueError:
             sys.exit(f"--since 需要 HH:MM 格式，收到: {args.since!r}")
-        since = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-        # 夜班窗口（23:05–08:05）跨午夜：早上生成记录时，
-        # "23:05" 指的是昨夜的 23:05，而不是今天晚上的
-        if since > now:
-            since -= dt.timedelta(days=1)
-        return since
+        return most_recent(hh, mm, now)
     if args.hours:
         return now - dt.timedelta(hours=args.hours)
-    return now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # 夜班工具的默认窗口 = 夜班窗口起点（AGENTS.md：23:05–08:05）。
+    # 早上生成记录时取昨夜 23:05，避免"当天 00:00"漏掉前半夜的提交。
+    return most_recent(*DEFAULT_SINCE, now)
+
+
+# 夜班窗口起点（AGENTS.md：正常工作 23:05–08:05）
+DEFAULT_SINCE = (23, 5)
+
+
+def most_recent(hh: int, mm: int, now: dt.datetime) -> dt.datetime:
+    """HH:MM 在 now 之前最近一次出现的时刻（跨午夜安全）。"""
+    since = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if since > now:
+        since -= dt.timedelta(days=1)
+    return since
 
 
 def git_since_iso(moment: dt.datetime) -> str:
@@ -168,6 +178,63 @@ def collect_branch_head(repo: Path) -> tuple[str, str]:
     branch = run_git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
     head = run_git(repo, "rev-parse", "--short", "HEAD").strip()
     return branch, head
+
+
+def demote_headings(markdown: str) -> str:
+    """把二级及以下标题整体降一级，用于把整份记录嵌入持续交接文档。"""
+    lines = []
+    for line in markdown.splitlines():
+        if re.match(r"^#{2,6} ", line):
+            line = "#" + line
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def derive_handoff_path(title: str, out_dir: Path) -> Path | None:
+    """从班次标题推导 A 式持续交接文档路径（夜班C → night-shift-c-handoff.md）。
+
+    标题中识别不出班次字母时返回 None，需调用方要求显式给出文件。
+    """
+    match = re.search(r"夜班([A-Za-z])", title)
+    if not match:
+        return None
+    letter = match.group(1).lower()
+    return out_dir / f"night-shift-{letter}-handoff.md"
+
+
+def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
+    """把本次记录作为新章节并入持续交接文档，返回是否新建了文件。
+
+    文件不存在：直接写入完整文档（含 H1 头）。
+    文件已存在：在文件头与第一个既有章节之间插入新章节（最新在最上，
+    与夜班A确立的持续更新约定一致），既有内容原样保留。嵌入时生成
+    内容的标题整体降一级，H1 行被章节标题取代。
+    """
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(markdown, encoding="utf-8")
+        return True
+
+    demoted = demote_headings(markdown).splitlines()
+    idx = 0
+    if demoted and demoted[0].startswith("# ") and not demoted[0].startswith("##"):
+        idx = 1  # 原文档 H1（# 夜班X 交班记录）被 heading 取代
+    while idx < len(demoted) and not demoted[idx].strip():
+        idx += 1
+    body = "\n".join(demoted[idx:]).strip()
+
+    lines = target.read_text(encoding="utf-8").splitlines()
+    insert_at = len(lines)
+    for i, line in enumerate(lines):
+        if line.startswith("## "):
+            insert_at = i
+            break
+    block = [heading, "", body, "", "---", ""]
+    lines[insert_at:insert_at] = block
+    if not lines or lines[-1].strip():
+        lines.append("")
+    target.write_text("\n".join(lines), encoding="utf-8")
+    return False
 
 
 def auto_fill_changes(commits: list[dict], files: list[str],
@@ -261,6 +328,11 @@ def main() -> None:
     parser.add_argument("--test", help="班次结束前运行的测试命令")
     parser.add_argument("--stdout", action="store_true",
                         help="只打印不写文件")
+    parser.add_argument("--append", nargs="?", const="AUTO", default=None,
+                        metavar="FILE",
+                        help=("追加到持续交接文档而不是新建按日期文件："
+                              "不带值时按 --title 推导（夜班C → "
+                              "night-shift-c-handoff.md），也可显式给相对路径"))
     args = parser.parse_args()
 
     repo = Path.cwd()
@@ -293,6 +365,26 @@ def main() -> None:
     except ValueError:
         sys.exit(f"--out 必须是仓库内的相对路径，收到: {args.out!r}")
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.append:
+        if args.append == "AUTO":
+            target = derive_handoff_path(args.title, out_dir)
+            if target is None:
+                sys.exit(f"--append 无法从标题 {args.title!r} 推导班次文档，"
+                         "请用 --append <相对路径> 显式指定。")
+        else:
+            target = (repo / args.append).resolve()
+            try:
+                target.relative_to(repo.resolve())
+            except ValueError:
+                sys.exit(f"--append 必须是仓库内的相对路径，收到: {args.append!r}")
+        created = append_to_handoff(
+            target, markdown, f"## {moment:%Y-%m-%d} {args.title}")
+        action = "已创建" if created else "已追加新章节"
+        print(f"交班记录{action}: {target.relative_to(repo)}")
+        print(f"其中 {len(JUDGEMENT_SECTIONS)} 个判断类章节为 TODO，需人工补全。")
+        return
+
     filename = f"{moment:%Y-%m-%d}-{args.title.replace('：', '-')}.md"
     out_path = out_dir / filename
     # 同一时段重复生成时不覆盖旧记录

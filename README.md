@@ -23,13 +23,15 @@
 下一轮建议、建议A/B/C/D）留为 TODO，由人或 AI 补全。
 
 ```bash
-python tools/shift_report.py --title "夜班C"            # 覆盖今天 00:00 起
+python tools/shift_report.py --title "夜班C"            # 覆盖最近一次 23:05 起（夜班窗口起点）
 python tools/shift_report.py --hours 8 --title "夜班C"  # 覆盖最近 8 小时
 python tools/shift_report.py --test "python -m unittest discover -s tests"  # 自动跑测试并写入记录
 python tools/shift_report.py --stdout                    # 只打印不写文件
+python tools/shift_report.py --append --title "夜班C"    # 追加进持续交接文档
 ```
 
 - `--since "20:30"` 取该时刻**最近一次出现**：夜班跨午夜（23:05–08:05），早上生成记录时写 `"23:05"` 指昨夜的 23:05；`--out` 只接受仓库内相对路径（默认 `handoff`）。
+- `--append` 把本次记录作为最新章节插入 `handoff/night-shift-<x>-handoff.md`（按 `--title` 中的班次字母推导，也可显式给相对路径），与夜班A确立的"单文件持续更新"交班约定一致；不加 `--append` 则新建按日期的独立文件。
 - 同一时段重复生成不覆盖旧记录，追加序号。
 - 仅依赖 Python 3 标准库和 git。
 
