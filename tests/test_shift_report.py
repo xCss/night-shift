@@ -245,6 +245,23 @@ class RepoIntegrationTests(unittest.TestCase):
         self.assertTrue(handoff.is_dir(), result.stdout)
         self.assertTrue(any("夜班T" in p.name for p in handoff.iterdir()))
 
+    def test_same_day_repeat_does_not_overwrite(self) -> None:
+        # README 承诺：同一时段重复生成不覆盖旧记录，追加序号
+        script = (Path(__file__).resolve().parent.parent
+                  / "tools" / "shift_report.py")
+        for _ in range(2):
+            result = subprocess.run(
+                [sys.executable, str(script), "--hours", "1",
+                 "--title", "夜班T", "--out", "handoff"],
+                cwd=self.repo, capture_output=True, text=True,
+                encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 0, result.stderr)
+        handoff = self.repo / "handoff"
+        names = sorted(p.name for p in handoff.iterdir())
+        self.assertEqual(len(names), 2)
+        self.assertTrue(any("-2" in n for n in names))  # 第二份带序号
+        self.assertTrue(any(n.endswith("夜班T.md") for n in names))  # 第一份原样
+
 
 class RenderTests(unittest.TestCase):
     def test_render_contains_all_sections(self) -> None:
