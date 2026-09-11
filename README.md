@@ -19,7 +19,8 @@
 
 自动采集本班次的 git 活动（提交、改动文件、行数、未提交状态），按协议固定
 章节生成交班记录 Markdown，默认写入 `handoff/`。判断类章节（今晚发现、
-今晚发明、最有价值成果、下一步、建议A/B/C/D）留为 TODO，由人或 AI 补全。
+今晚比赛、冠军方案、今晚发明、未完成问题、最有价值成果、下一步、
+下一轮建议、建议A/B/C/D）留为 TODO，由人或 AI 补全。
 
 ```bash
 python tools/shift_report.py --title "夜班C"            # 覆盖今天 00:00 起
@@ -28,7 +29,7 @@ python tools/shift_report.py --test "python -m unittest discover -s tests"  # �
 python tools/shift_report.py --stdout                    # 只打印不写文件
 ```
 
-- `--since "20:30"` 指定当天起点；`--out` 只接受仓库内相对路径（默认 `handoff`）。
+- `--since "20:30"` 取该时刻**最近一次出现**：夜班跨午夜（23:05–08:05），早上生成记录时写 `"23:05"` 指昨夜的 23:05；`--out` 只接受仓库内相对路径（默认 `handoff`）。
 - 同一时段重复生成不覆盖旧记录，追加序号。
 - 仅依赖 Python 3 标准库和 git。
 
