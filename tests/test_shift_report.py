@@ -59,11 +59,12 @@ class ParseSinceTests(unittest.TestCase):
         self.assertEqual(got, dt.datetime(2026, 9, 11, 23, 5))
 
     def test_since_not_yet_reached_stays_today(self) -> None:
-        # 白天场景：14:00 写 --since "20:30"（今晚）不应被错误回退
+        # 统一语义：--since "HH:MM" 取该时刻最近一次出现。
+        # 白天 14:00 写 --since "20:30" → 昨晚 20:30（昨晚以来的活动）
         now = dt.datetime(2026, 9, 11, 14, 0)
         args = type("A", (), {"since": "20:30", "hours": None})()
         got = shift_report.parse_since(args, now)
-        self.assertEqual(got, dt.datetime(2026, 9, 11, 20, 30))
+        self.assertEqual(got, dt.datetime(2026, 9, 10, 20, 30))
 
     def test_hours(self) -> None:
         args = type("A", (), {"since": None, "hours": 8.0})()

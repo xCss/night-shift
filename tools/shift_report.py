@@ -11,7 +11,7 @@
 用法：
     python tools/shift_report.py                     # 覆盖今天 00:00 以来的活动
     python tools/shift_report.py --hours 8           # 覆盖最近 8 小时
-    python tools/shift_report.py --since "20:30"     # 覆盖今天 20:30 以来
+    python tools/shift_report.py --since "23:05"     # 覆盖最近一次 23:05 以来（跨午夜安全）
     python tools/shift_report.py --test "python -m pytest -q"
     python tools/shift_report.py --out handoff --title "夜班C：无聊发明"
 
@@ -253,7 +253,7 @@ def render(repo: Path, repo_name: str, shift_title: str, moment: dt.datetime,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成夜班交班记录")
-    parser.add_argument("--since", help="起点时间 HH:MM（今天）")
+    parser.add_argument("--since", help="起点时间 HH:MM（取该时刻最近一次出现，支持跨午夜班次）")
     parser.add_argument("--hours", type=float, help="覆盖最近 N 小时")
     parser.add_argument("--out", default="handoff",
                         help="输出目录（默认 handoff/，与仓库交接目录一致）")
