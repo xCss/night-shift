@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 import shift_report  # noqa: E402
+import shift_start  # noqa: E402
 
 
 def git(repo: Path, *args: str) -> None:
@@ -185,6 +186,39 @@ class ProtocolAlignmentTests(unittest.TestCase):
         )
         for section in shift_report.PROTOCOL_REQUIRED_SECTIONS:
             self.assertIn(f"## {section}", md)
+
+
+class ShiftStartTests(unittest.TestCase):
+    """shift_start.py：开工自检的时间新鲜度判定与集成。"""
+
+    def test_staleness_recent(self) -> None:
+        now = dt.datetime(2026, 9, 11, 23, 40)
+        desc, recent = shift_start.describe_staleness(
+            dt.datetime(2026, 9, 11, 23, 35), now)
+        self.assertTrue(recent)
+        self.assertEqual(desc, "5 分钟前")
+
+    def test_staleness_old(self) -> None:
+        now = dt.datetime(2026, 9, 11, 23, 40)
+        desc, recent = shift_start.describe_staleness(
+            dt.datetime(2026, 9, 11, 20, 0), now)
+        self.assertFalse(recent)
+        self.assertEqual(desc, "3 小时 40 分前")
+
+    def test_staleness_future_is_suspicious(self) -> None:
+        now = dt.datetime(2026, 9, 11, 23, 40)
+        desc, recent = shift_start.describe_staleness(
+            dt.datetime(2026, 9, 11, 23, 41), now)
+        self.assertTrue(recent)
+        self.assertIn("异常", desc)
+
+    def test_last_commit_time_naive_local(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            last = shift_start.last_commit_time(repo)
+            self.assertIsNotNone(last)
+            self.assertIsNone(last.tzinfo)  # 必须是朴素时间，避免相减报错
+            self.assertLessEqual(last, dt.datetime.now())
 
 
 if __name__ == "__main__":

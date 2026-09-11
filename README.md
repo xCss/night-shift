@@ -33,6 +33,18 @@ python tools/shift_report.py --stdout                    # 只打印不写文件
 - 同一时段重复生成不覆盖旧记录，追加序号。
 - 仅依赖 Python 3 标准库和 git。
 
+### `tools/shift_start.py` — 开夜班自检
+
+夜班系统有多名班次并发操作同一个仓库（2026-09-11 夜间实际发生过文件踩踏）。
+开工时先运行，回答两个问题：仓库现在什么状态？是否有并行班次正在工作？
+
+```bash
+python tools/shift_start.py                  # 只读，不改任何文件
+python tools/shift_start.py --warn-minutes 30
+```
+
+最后提交距今不足阈值（默认 15 分钟）或工作区不干净时会给出并发警告。
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。
