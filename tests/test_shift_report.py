@@ -120,6 +120,18 @@ class RepoIntegrationTests(unittest.TestCase):
         self.assertEqual(added, 3)
         self.assertEqual(deleted, 0)
 
+    def test_numstat_decodes_non_ascii_filenames(self) -> None:
+        # 中文文件名不该被 git 转义成八进制（core.quotepath=off）
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            (repo / "夜班记录.md").write_text("内容\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-q", "-m", "中文文件")
+            since = shift_report.git_since_iso(
+                dt.datetime.now() - dt.timedelta(hours=1))
+            files, _, _ = shift_report.collect_numstat(repo, since)
+            self.assertIn("夜班记录.md", files)
+
     def test_status_clean(self) -> None:
         staged, unstaged = shift_report.collect_status(self.repo)
         self.assertEqual((staged, unstaged), ([], []))

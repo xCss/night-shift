@@ -61,7 +61,8 @@ PROTOCOL_REQUIRED_SECTIONS = ["今晚比赛", "冠军方案", "未完成问题",
 
 def run_git(repo: Path, *args: str, check: bool = True) -> str:
     result = subprocess.run(
-        ["git", "-C", str(repo), *args],
+        # core.quotepath=off：非 ASCII 文件名（如中文）按原样输出，不转义
+        ["git", "-c", "core.quotepath=off", "-C", str(repo), *args],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if check and result.returncode != 0:
