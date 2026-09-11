@@ -15,6 +15,8 @@
     python tools/shift_report.py --test "python -m pytest -q"
     python tools/shift_report.py --out handoff --title "夜班C：无聊发明"
     python tools/shift_report.py --append --title "夜班C"   # 追加进持续交接文档
+    python tools/shift_report.py --profile C --append --title "夜班C"
+    python tools/shift_report.py --shift-tag C --hours 9    # 只统计 [C] 标记的提交
 
 仅依赖标准库；只在 git 仓库内运行，输出默认写入 handoff/ 目录（与仓库
 交接目录约定一致）。
@@ -201,6 +203,71 @@ def collect_branch_head(repo: Path) -> tuple[str, str]:
     return branch, head
 
 
+def filter_by_shift_tag(repo: Path, commits: list[dict],
+                        tag: str) -> tuple[list[dict], list[str], int, int]:
+    """按提交信息前缀 [tag] 过滤班次提交，并重新统计其文件与行数。
+
+    全窗口 numstat 混有其他班次的改动，所以命中提交逐个 git show 重新
+    采集。约定未获人工裁决前这是 opt-in 功能：提交信息不带前缀时结果
+    为空，不影响默认行为。
+    """
+    prefix = f"[{tag}]"
+    matched = [c for c in commits if c["subject"].startswith(prefix)]
+    files: dict[str, None] = {}
+    added = deleted = 0
+    for c in matched:
+        out = run_git(repo, "show", "--numstat", "--pretty=format:",
+                      c["hash"], check=False)
+        c_files, c_added, c_deleted = _parse_numstat_text(out)
+        for f in c_files:
+            files[f] = None
+        added += c_added
+        deleted += c_deleted
+    return matched, sorted(files), added, deleted
+
+
+def resolve_sections(profile: str | None, sections_raw: str | None) -> list[str]:
+    """按 --profile 预设或 --sections 显式列表确定本次渲染的章节集合。
+
+    默认（两者都不给）返回全并集 SECTIONS。预置了夜班C协议章节
+    （来自 C 班次的触发提示词）；其他班次的模板可按同样方式在
+    PROFILES 里登记。
+    """
+    if profile and sections_raw:
+        sys.exit("--profile 与 --sections 只能用一个。")
+    if sections_raw:
+        chosen = [s.strip() for s in re.split(r"[,，]", sections_raw) if s.strip()]
+        if not chosen:
+            sys.exit("--sections 解析结果为空。")
+        return chosen
+    if profile:
+        if profile not in PROFILES:
+            sys.exit(f"未知班次模板 {profile!r}，可用：{', '.join(sorted(PROFILES))}。"
+                     "各班次模板可按 PROFILES 注释说明登记。")
+        return PROFILES[profile]
+    return SECTIONS
+
+
+# 班次协议章节预设。夜班C：来自 C 班次触发提示词的交班记录字段。
+# 其他班次（A/B/D）拿到自己协议的权威字段列表后，按同样格式在此登记。
+PROFILES: dict[str, list[str]] = {
+    "C": [
+        "今晚发现",
+        "今晚完成",
+        "今晚发明",
+        "实际修改",
+        "实验",
+        "测试",
+        "失败",
+        "最有价值成果",
+        "下一步",
+        "建议A关注",
+        "建议B关注",
+        "建议D记录",
+    ],
+}
+
+
 def _is_fence(line: str) -> bool:
     """该行是否是 Markdown 代码围栏的开启/关闭标记。"""
     stripped = line.lstrip()
@@ -331,7 +398,7 @@ def render(repo: Path, repo_name: str, shift_title: str, moment: dt.datetime,
            since: dt.datetime, branch: str, head: str,
            commits: list[dict], files: list[str], added: int, deleted: int,
            staged: list[str], unstaged: list[str],
-           test_cmd: str | None) -> str:
+           test_cmd: str | None, sections: list[str] | None = None) -> str:
     buf = [f"# {shift_title} 交班记录", ""]
     buf.append(f"- 班次日期：{moment:%Y-%m-%d %H:%M}")
     buf.append(f"- 覆盖时段：{since:%Y-%m-%d %H:%M} 起")
@@ -347,7 +414,7 @@ def render(repo: Path, repo_name: str, shift_title: str, moment: dt.datetime,
         "测试": auto_fill_tests(test_cmd, repo),
     }
 
-    for section in SECTIONS:
+    for section in (sections or SECTIONS):
         buf.append(f"## {section}")
         buf.append("")
         if section in auto:
@@ -386,6 +453,14 @@ def main() -> None:
                         help=("追加到持续交接文档而不是新建按日期文件："
                               "不带值时按 --title 推导（夜班C → "
                               "night-shift-c-handoff.md），也可显式给相对路径"))
+    parser.add_argument("--shift-tag", dest="shift_tag",
+                        help=("按提交信息前缀 [X] 过滤本班次的提交与文件统计"
+                              "（约定：提交信息以 [C] 等班次标记开头）；"
+                              "提交不带标记时结果为空"))
+    group_sections = parser.add_mutually_exclusive_group()
+    group_sections.add_argument("--profile", help="使用预置班次协议章节（如 C）")
+    group_sections.add_argument("--sections",
+                                help="显式指定章节列表，逗号分隔（中英文逗号均可）")
     args = parser.parse_args()
 
     if args.stdout and args.append:
@@ -407,13 +482,20 @@ def main() -> None:
 
     branch, head = collect_branch_head(repo)
     commits = collect_commits(repo, since_iso)
-    files, added, deleted = collect_numstat(repo, since_iso)
+    if args.shift_tag:
+        commits, files, added, deleted = filter_by_shift_tag(
+            repo, commits, args.shift_tag)
+    else:
+        files, added, deleted = collect_numstat(repo, since_iso)
     staged, unstaged = collect_status(repo)
+    sections = resolve_sections(args.profile, args.sections)
 
     markdown = render(
         repo, repo.name, args.title, moment, since, branch, head,
         commits, files, added, deleted, staged, unstaged, args.test,
+        sections=sections,
     )
+    todo_n = sum(1 for s in sections if s not in ("今晚完成", "实际修改", "测试"))
 
     if args.stdout:
         print(markdown)
@@ -442,7 +524,7 @@ def main() -> None:
             target, markdown, f"## {moment:%Y-%m-%d} {args.title}")
         action = "已创建" if created else "已追加新章节"
         print(f"交班记录{action}: {target.relative_to(repo_root)}")
-        print(f"其中 {len(JUDGEMENT_SECTIONS)} 个判断类章节为 TODO，需人工补全。")
+        print(f"其中 {todo_n} 个章节为 TODO，需人工补全。")
         return
 
     filename = f"{moment:%Y-%m-%d}-{sanitize_filename_part(args.title)}.md"
@@ -454,7 +536,7 @@ def main() -> None:
         out_path = out_dir / f"{out_path.stem}-{counter}{out_path.suffix}"
     out_path.write_text(markdown, encoding="utf-8")
     print(f"交班记录已生成: {out_path.relative_to(repo_root)}")
-    print(f"其中 {len(JUDGEMENT_SECTIONS)} 个判断类章节为 TODO，需人工补全。")
+    print(f"其中 {todo_n} 个章节为 TODO，需人工补全。")
 
 
 if __name__ == "__main__":

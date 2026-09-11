@@ -487,5 +487,68 @@ class AppendTests(unittest.TestCase):
             self.assertNotIn("---\n---", text)
 
 
+class ShiftTagTests(unittest.TestCase):
+    """--shift-tag：按提交信息前缀过滤班次归属，numstat 逐提交重算。"""
+
+    def test_filter_and_numstat(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp), commits=0)
+            (repo / "c.txt").write_text("c\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-q", "-m", "[C] 归属C的提交")
+            (repo / "b.txt").write_text("b\nb\n", encoding="utf-8")
+            git(repo, "add", ".")
+            git(repo, "commit", "-q", "-m", "无标记提交")
+            all_commits = shift_report.collect_commits(
+                repo, shift_report.git_since_iso(
+                    dt.datetime.now() - dt.timedelta(hours=1)))
+            self.assertEqual(len(all_commits), 2)
+
+            matched, files, added, deleted = shift_report.filter_by_shift_tag(
+                repo, all_commits, "C")
+            self.assertEqual(len(matched), 1)
+            self.assertEqual(matched[0]["subject"], "[C] 归属C的提交")
+            self.assertEqual(files, ["c.txt"])
+            self.assertEqual((added, deleted), (1, 0))
+
+            empty, _, _, _ = shift_report.filter_by_shift_tag(
+                repo, all_commits, "D")
+            self.assertEqual(empty, [])
+
+
+class ResolveSectionsTests(unittest.TestCase):
+    def test_default_union(self) -> None:
+        self.assertEqual(shift_report.resolve_sections(None, None),
+                         shift_report.SECTIONS)
+
+    def test_profile_c(self) -> None:
+        got = shift_report.resolve_sections("C", None)
+        self.assertIn("今晚发现", got)
+        self.assertNotIn("今晚比赛", got)  # C 协议没有 B 的比赛章节
+
+    def test_unknown_profile_exits(self) -> None:
+        with self.assertRaises(SystemExit):
+            shift_report.resolve_sections("X", None)
+
+    def test_sections_override(self) -> None:
+        got = shift_report.resolve_sections(None, "测试, 实际修改，失败")
+        self.assertEqual(got, ["测试", "实际修改", "失败"])
+
+    def test_both_given_exits(self) -> None:
+        with self.assertRaises(SystemExit):
+            shift_report.resolve_sections("C", "测试")
+
+    def test_render_with_profile_c(self) -> None:
+        md = shift_report.render(
+            Path("."), "demo", "夜班C", dt.datetime(2026, 9, 12, 0, 10),
+            dt.datetime(2026, 9, 11, 23, 20), "main", "abc1234",
+            commits=[], files=[], added=0, deleted=0,
+            staged=[], unstaged=[], test_cmd=None,
+            sections=shift_report.resolve_sections("C", None),
+        )
+        self.assertIn("## 今晚发明", md)
+        self.assertNotIn("## 今晚比赛", md)
+
+
 if __name__ == "__main__":
     unittest.main()
