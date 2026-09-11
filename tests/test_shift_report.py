@@ -317,6 +317,13 @@ class AppendTests(unittest.TestCase):
         self.assertEqual(shift_report.demote_headings(md),
                          "# T\n\n### A\n\n#### B\n\ntext")
 
+    def test_demote_skips_code_fence(self) -> None:
+        # 围栏内的 "## 行" 是内容不是标题，降级会篡改数据
+        md = "# T\n\n## A\n\n```\n## not-a-heading\n```\n"
+        out = shift_report.demote_headings(md)
+        self.assertIn("### A", out)
+        self.assertIn("\n## not-a-heading\n", out)
+
     def _sample_markdown(self) -> str:
         return ("# 夜班C 交班记录\n"
                 "\n"
@@ -362,6 +369,63 @@ class AppendTests(unittest.TestCase):
             self.assertIn("### 今晚发现", text)
             self.assertNotIn("\n## 今晚发现", text)
             self.assertIn("- 旧内容", text)  # 既有内容保留
+
+    def test_append_skips_heading_inside_fence_in_target(self) -> None:
+        # 目标文档围栏内的 "## " 是内容：插入点必须落在围栏后的真实章节前
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "handoff.md"
+            target.write_text(
+                "# 夜班C交班记录\n"
+                "> 简介\n"
+                "\n"
+                "```\n"
+                "## 示例标题\n"
+                "```\n"
+                "\n"
+                "## 2026-09-10 旧章节\n"
+                "\n"
+                "- 旧内容\n",
+                encoding="utf-8")
+            shift_report.append_to_handoff(
+                target, self._sample_markdown(), "## 2026-09-11 夜班C")
+            text = target.read_text(encoding="utf-8")
+            new_pos = text.index("## 2026-09-11 夜班C")
+            self.assertGreater(new_pos, text.index("## 示例标题"))
+            self.assertLess(new_pos, text.index("## 2026-09-10 旧章节"))
+            # 围栏内容原样保留
+            self.assertIn("## 示例标题", text)
+
+    def test_append_preserves_crlf_line_endings(self) -> None:
+        # Windows 检出的文档常为 CRLF：追加不应把整份文档改写成 LF
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "handoff.md"
+            target.write_bytes(
+                "# 夜班C交班记录\r\n> 简介\r\n\r\n## 2026-09-10 旧章节\r\n\r\n- 旧内容\r\n"
+                .encode("utf-8"))
+            shift_report.append_to_handoff(
+                target, self._sample_markdown(), "## 2026-09-11 夜班C")
+            data = target.read_bytes()
+            self.assertIn("- 旧内容\r\n".encode("utf-8"), data)
+            self.assertIn("## 2026-09-11 夜班C\r\n".encode("utf-8"), data)
+            # 除去 CRLF 后不应残留任何裸 LF（否则说明有行被改成了 LF 行尾）
+            self.assertEqual(data.replace(b"\r\n", b"").count(b"\n"), 0)
+
+    def test_append_drops_footer_separator(self) -> None:
+        # 渲染页脚自带 "---"：追加时去掉，避免与外层追加分隔线相邻重复
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "handoff.md"
+            target.write_text("# 夜班C交班记录\n\n## 2026-09-10 旧章节\n\n- 旧\n",
+                              encoding="utf-8")
+            md = ("# 夜班C 交班记录\n\n## 今晚发现\n\n- x\n\n"
+                  "---\n"
+                  "*由 tools/shift_report.py 自动生成于 2026-09-11 23:00:00，"
+                  "TODO 段落需人工补全。*\n")
+            shift_report.append_to_handoff(
+                target, md, "## 2026-09-11 夜班C")
+            text = target.read_text(encoding="utf-8")
+            self.assertIn("*由 tools/shift_report.py 自动生成于", text)  # 署名保留
+            self.assertNotIn("---\n*由 tools/shift_report.py", text)  # 页脚分隔线已去
+            self.assertNotIn("---\n---", text)
 
 
 if __name__ == "__main__":

@@ -185,11 +185,23 @@ def collect_branch_head(repo: Path) -> tuple[str, str]:
     return branch, head
 
 
+def _is_fence(line: str) -> bool:
+    """该行是否是 Markdown 代码围栏的开启/关闭标记。"""
+    stripped = line.lstrip()
+    return stripped.startswith("```") or stripped.startswith("~~~")
+
+
 def demote_headings(markdown: str) -> str:
-    """把二级及以下标题整体降一级，用于把整份记录嵌入持续交接文档。"""
+    """把二级及以下标题整体降一级，用于把整份记录嵌入持续交接文档。
+
+    代码围栏内的 # 行是内容不是标题，不做降级。
+    """
     lines = []
+    in_fence = False
     for line in markdown.splitlines():
-        if re.match(r"^#{2,6} ", line):
+        if _is_fence(line):
+            in_fence = not in_fence
+        elif not in_fence and re.match(r"^#{2,6} ", line):
             line = "#" + line
         lines.append(line)
     return "\n".join(lines)
@@ -226,19 +238,32 @@ def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
         idx = 1  # 原文档 H1（# 夜班X 交班记录）被 heading 取代
     while idx < len(demoted) and not demoted[idx].strip():
         idx += 1
-    body = "\n".join(demoted[idx:]).strip()
+    body_lines = demoted[idx:]
+    while body_lines and not body_lines[-1].strip():
+        body_lines.pop()
+    # 渲染页脚自带 "---" 分隔线：去掉它，避免与外层追加分隔线相邻重复
+    if (len(body_lines) >= 2 and body_lines[-2].strip() == "---"
+            and body_lines[-1].startswith("*由 tools/shift_report.py")):
+        del body_lines[-2]
+    body = "\n".join(body_lines).strip()
 
-    lines = target.read_text(encoding="utf-8").splitlines()
+    raw = target.read_text(encoding="utf-8")
+    # 保留原文档的行尾风格（Windows 检出常为 CRLF），避免产生全文件 diff
+    newline = "\r\n" if "\r\n" in raw else "\n"
+    lines = raw.splitlines()
     insert_at = len(lines)
+    in_fence = False
     for i, line in enumerate(lines):
-        if line.startswith("## "):
-            insert_at = i
+        if _is_fence(line):
+            in_fence = not in_fence
+        elif not in_fence and line.startswith("## "):
+            insert_at = i  # 插到第一个真实章节前；围栏内的 "## " 是内容
             break
     block = [heading, "", body, "", "---", ""]
     lines[insert_at:insert_at] = block
     if not lines or lines[-1].strip():
         lines.append("")
-    target.write_text("\n".join(lines), encoding="utf-8")
+    target.write_text(newline.join(lines), encoding="utf-8")
     return False
 
 
