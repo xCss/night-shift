@@ -88,7 +88,12 @@ def parse_since(args: argparse.Namespace, now: dt.datetime | None = None) -> dt.
             hh, mm = map(int, args.since.split(":"))
         except ValueError:
             sys.exit(f"--since 需要 HH:MM 格式，收到: {args.since!r}")
-        return now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        since = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        # 夜班窗口（23:05–08:05）跨午夜：早上生成记录时，
+        # "23:05" 指的是昨夜的 23:05，而不是今天晚上的
+        if since > now:
+            since -= dt.timedelta(days=1)
+        return since
     if args.hours:
         return now - dt.timedelta(hours=args.hours)
     return now.replace(hour=0, minute=0, second=0, microsecond=0)

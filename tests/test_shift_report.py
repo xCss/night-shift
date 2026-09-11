@@ -51,6 +51,20 @@ class ParseSinceTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             shift_report.parse_since(args)
 
+    def test_since_crosses_midnight(self) -> None:
+        # 夜班场景：早上 08:00 写 --since "23:05" 应指昨夜的 23:05
+        now = dt.datetime(2026, 9, 12, 8, 0)
+        args = type("A", (), {"since": "23:05", "hours": None})()
+        got = shift_report.parse_since(args, now)
+        self.assertEqual(got, dt.datetime(2026, 9, 11, 23, 5))
+
+    def test_since_not_yet_reached_stays_today(self) -> None:
+        # 白天场景：14:00 写 --since "20:30"（今晚）不应被错误回退
+        now = dt.datetime(2026, 9, 11, 14, 0)
+        args = type("A", (), {"since": "20:30", "hours": None})()
+        got = shift_report.parse_since(args, now)
+        self.assertEqual(got, dt.datetime(2026, 9, 11, 20, 30))
+
     def test_hours(self) -> None:
         args = type("A", (), {"since": None, "hours": 8.0})()
         got = shift_report.parse_since(args)
