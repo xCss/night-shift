@@ -327,6 +327,13 @@ def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
         target.write_text(markdown, encoding="utf-8")
         return True
 
+    # errors=replace：与其他读取点一致，坏字节不致命；
+    # newline=""：禁用通用换行转换，否则 CRLF 在读取时已被改成 LF，行尾检测永远失灵
+    with target.open("r", encoding="utf-8", errors="replace", newline="") as f:
+        raw = f.read()
+    # 保留原文档的行尾风格（Windows 检出常为 CRLF），避免产生全文件 diff
+    newline = "\r\n" if "\r\n" in raw else "\n"
+
     demoted = demote_headings(markdown).splitlines()
     idx = 0
     if demoted and demoted[0].startswith("# ") and not demoted[0].startswith("##"):
@@ -340,12 +347,8 @@ def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
     if (len(body_lines) >= 2 and body_lines[-2].strip() == "---"
             and body_lines[-1].startswith("*由 tools/shift_report.py")):
         del body_lines[-2]
-    body = "\n".join(body_lines).strip()
+    body = newline.join(body_lines).strip()
 
-    # errors=replace：与其他读取点一致，坏字节不致命
-    raw = target.read_text(encoding="utf-8", errors="replace")
-    # 保留原文档的行尾风格（Windows 检出常为 CRLF），避免产生全文件 diff
-    newline = "\r\n" if "\r\n" in raw else "\n"
     lines = raw.splitlines()
     insert_at = len(lines)
     in_fence = False
@@ -359,7 +362,10 @@ def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
     lines[insert_at:insert_at] = block
     if not lines or lines[-1].strip():
         lines.append("")
-    target.write_text(newline.join(lines), encoding="utf-8")
+    # newline=""：按检测出的行尾原样写出，不做平台翻译（否则 Windows 上
+    # 全部被改写成 CRLF、Linux 上全部 LF，检测结果形同虚设）
+    with target.open("w", encoding="utf-8", newline="") as f:
+        f.write(newline.join(lines))
     return False
 
 
