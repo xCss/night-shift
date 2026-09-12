@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>班次出勤表</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background:linear-gradient(160deg,#0b1020,#141b34 60%,#1a1440);
+         color:#dfe3ee; font:15px/1.6 "Segoe UI","Microsoft YaHei",sans-serif;
+         min-height:100vh; padding:32px; }
+  h1 { font-size:25px; } h1 small { color:#8a93b2; font-size:13px;
+       font-weight:normal; margin-left:12px; }
+  p.nav a { color:#9db4ff; text-decoration:none; margin-right:10px; }
+  p.nav a:hover { text-decoration:underline; }
+  section { background:rgba(255,255,255,.04); border-radius:14px;
+            padding:20px 22px; margin:18px 0; border:1px solid rgba(255,255,255,.08); }
+  h2 { font-size:16px; color:#aeb8dd; margin:0 0 6px;
+       border-left:3px solid #5b6cff; padding-left:10px; }
+  .dayrow { margin:14px 0 4px; color:#aeb8dd; font-weight:bold; font-size:15px; }
+  .gantt { position:relative; background:rgba(255,255,255,.04);
+           border-radius:10px; height:34px; margin:6px 0 10px; }
+  .gantt .hourlabel { position:absolute; top:50%; transform:translateY(-50%);
+                      color:#4a5273; font-size:11px; }
+  .bar { position:absolute; top:50%; height:16px; transform:translateY(-50%);
+         border-radius:8px; cursor:help; min-width:6px; }
+  .rowlabel { color:#aeb8dd; font-size:13px; margin:8px 0 2px; }
+  table { border-collapse:collapse; margin-top:8px; }
+  th,td { padding:5px 14px; border-bottom:1px solid rgba(255,255,255,.08);
+          text-align:left; font-size:14px; }
+  th { color:#8a93b2; font-weight:normal; }
+  .total { font-size:20px; color:#7ce8c1; }
+  .legend { color:#8a93b2; font-size:12.5px; margin-top:10px; }
+  .empty { color:#68719a; padding:16px; text-align:center; }
+  footer { color:#5d6688; font-size:12.5px; margin-top:26px; text-align:center; }
+  a { color:#9db4ff; text-decoration:none; }
+</style>
+</head>
+<body>
+<h1>🛰️ 班次出勤表 <small id="sub"></small></h1>
+<p class="nav">
+  <a href="index.html">🎛️ 驾驶舱</a><a href="docs.html">📚 图书馆</a>
+  <a href="history.html">📅 大事记</a>· 本页（值班时段反推）</p>
+
+<section>
+  <h2>累计在岗时长</h2>
+  <div id="totals"></div>
+  <div class="legend">检测启发式：同一班次相邻提交间隔 ≤ 2 小时视为同一次值班；
+    值班标记约定落地前的提交无法归属，不计入。</div>
+</section>
+
+<section>
+  <h2>值班时段甘特图（按日，横轴 0–24 时）</h2>
+  <div id="gantt"></div>
+</section>
+
+<footer>night-shift autopilot · tools/night_shifts.py · 纯静态 HTML+JS，GitHub Pages 即开即用</footer>
+
+<script>
+const DATA = {"generated": "2026-09-12 10:02", "sessions": [{"lane": "C", "day": "2026-09-12", "startMin": 474, "endMin": 594, "startHHMM": "07:54", "endHHMM": "09:54", "count": 23}, {"lane": "A", "day": "2026-09-12", "startMin": 509, "endMin": 509, "startHHMM": "08:29", "endHHMM": "08:29", "count": 1}, {"lane": "D", "day": "2026-09-12", "startMin": 518, "endMin": 518, "startHHMM": "08:38", "endHHMM": "08:38", "count": 1}]};
+const SESSIONS = DATA.sessions;
+
+const COLORS = { A:"#7c9cff", B:"#ffb86c", C:"#7ce8c1", D:"#ff9ecb" };
+const NAMES = { A:"记忆基建", B:"棋手联赛", C:"无聊发明", D:"记录" };
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+document.getElementById("sub").textContent =
+  `${DATA.generated} 生成 · ${SESSIONS.length} 段值班时段`;
+
+document.getElementById("totals").innerHTML = (() => {
+  const totals = {};
+  for (const s of SESSIONS) {
+    totals[s.lane] = totals[s.lane] || { hours: 0, sessions: 0, commits: 0 };
+    totals[s.lane].hours += (s.endMin - s.startMin) / 60;
+    totals[s.lane].sessions += 1;
+    totals[s.lane].commits += s.count;
+  }
+  const rows = Object.keys(totals).sort().map(lane => {
+    const t = totals[lane];
+    return `<tr><td><b style="color:${COLORS[lane] || "#8a8f9d"}">${esc(lane)}</b>
+      <small style="color:#68719a"> ${esc(NAMES[lane] || "")}</small></td>
+      <td class="total">${t.hours >= 0.05 ? t.hours.toFixed(1) + " h"
+        : Math.round(t.hours * 60) + " 分"}</td>
+      <td>${t.sessions} 段</td><td>${t.commits} 提交</td>
+      <td>${(t.commits / Math.max(t.hours, 0.1)).toFixed(1)} 提交/时</td></tr>`;
+  }).join("");
+  return `<table><tr><th>班次</th><th>累计在岗</th><th>时段数</th>
+    <th>提交数</th><th>密度</th></tr>${rows}</table>`;
+})();
+
+// 甘特：按日分组，横轴为当日 0–24 时
+const byDay = {};
+for (const s of SESSIONS) {
+  (byDay[s.day] = byDay[s.day] || []).push(s);
+}
+document.getElementById("gantt").innerHTML = Object.keys(byDay).sort()
+  .reverse().map(day => {
+    const rows = [...Object.keys(COLORS)].map(lane => {
+      const bars = (byDay[day] || []).filter(s => s.lane === lane).map(s =>
+        `<div class="bar" style="left:${(s.startMin / 1440 * 100).toFixed(2)}%;
+          width:${Math.max(0.4, (s.endMin - s.startMin) / 1440 * 100).toFixed(2)}%;
+          background:${COLORS[lane]}"
+          title="${esc(lane)} ${esc(NAMES[lane] || "")}
+ ${esc(s.startHHMM)}–${esc(s.endHHMM)} · ${s.count} 提交"></div>`).join("");
+      return `<div class="rowlabel">${lane} ${esc(NAMES[lane] || "")}</div>
+        <div class="gantt">${bars}
+          <span class="hourlabel" style="left:2%">00</span>
+          <span class="hourlabel" style="left:25%">06</span>
+          <span class="hourlabel" style="left:50%">12</span>
+          <span class="hourlabel" style="left:75%">18</span>
+          <span class="hourlabel" style="right:2%">24</span></div>`;
+    }).join("");
+    return `<div class="dayrow">${esc(day)}</div>${rows}`;
+  }).join("") || '<div class="empty">暂无可归属的值班时段</div>';
+</script>
+</body>
+</html>
