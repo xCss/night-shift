@@ -40,7 +40,11 @@ def collect_markdown_files(repo: Path, dirs: tuple[str, ...]) -> list[Path]:
     for d in dirs:
         base = repo / d
         if base.is_dir():
-            files += sorted(base.rglob("*.md"))
+            for f in sorted(base.rglob("*.md")):
+                # 晨报是生成物：其中复述的待确认事项不是独立来源，
+                # 否则每天重复计数，越滚越多
+                if "morning-report" not in f.name:
+                    files.append(f)
     return files
 
 
