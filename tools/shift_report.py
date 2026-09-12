@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 import re
+import time
 import subprocess
 import sys
 from pathlib import Path
@@ -314,7 +316,74 @@ def derive_handoff_path(title: str, out_dir: Path) -> Path | None:
     return out_dir / f"night-shift-{letter}-handoff.md"
 
 
-def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
+def _acquire_lock(lock_path: Path, timeout: float = 10.0) -> None:
+    """独占锁：O_CREAT|O_EXCL 抢创建，失败则重试直至超时。
+
+    陈旧锁接管：锁文件超过 60 秒视为持锁进程已崩溃，强行删除接管。
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return
+        except FileExistsError:
+            try:
+                if time.time() - lock_path.stat().st_mtime > 60:
+                    lock_path.unlink(missing_ok=True)
+                    continue
+            except FileNotFoundError:
+                pass
+            if time.monotonic() > deadline:
+                sys.exit(f"锁等待超时: {lock_path.name}——疑似并发班次正在"
+                         "写同一文档，稍后重试。")
+            time.sleep(0.05)
+
+
+def _release_lock(lock_path: Path) -> None:
+    try:
+        lock_path.unlink(missing_ok=True)
+    except FileNotFoundError:
+        pass
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """临时文件 + os.replace：并发读者（memory_check/CI）永远看不到半份文档。
+
+    newline=""：text 的行尾已由调用方按检测结果拼好，这里原样写字节，
+    不做任何平台翻译（否则 "
+" 会被再翻译成 "
+"）。
+    """
+    tmp = path.with_name(f"{path.name}.tmp{os.getpid()}")
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def append_to_handoff(target: Path, markdown: str, heading: str,
+                      lock_timeout: float = 10.0) -> bool:
+    """把本次记录作为新章节并入持续交接文档，返回是否新建了文件。
+
+    并发安全：全程持有目标文档的独占锁文件（两班次同时收班 append
+    同一文档时串行化，杜绝后写者覆盖先写者的记录丢失）；写入经临时
+    文件 + os.replace 原子替换，并发读者不会看到半份文档。
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    lock = target.parent / f"{target.name}.lock"
+    _acquire_lock(lock, lock_timeout)
+    try:
+        return _append_to_handoff_locked(target, markdown, heading)
+    finally:
+        _release_lock(lock)
+
+
+def _append_to_handoff_locked(target: Path, markdown: str,
+                              heading: str) -> bool:
     """把本次记录作为新章节并入持续交接文档，返回是否新建了文件。
 
     文件不存在：直接写入完整文档（含 H1 头）。
@@ -323,8 +392,7 @@ def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
     内容的标题整体降一级，H1 行被章节标题取代。
     """
     if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(markdown, encoding="utf-8")
+        _atomic_write_text(target, markdown)
         return True
 
     # errors=replace：与其他读取点一致，坏字节不致命；
@@ -364,8 +432,7 @@ def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
         lines.append("")
     # newline=""：按检测出的行尾原样写出，不做平台翻译（否则 Windows 上
     # 全部被改写成 CRLF、Linux 上全部 LF，检测结果形同虚设）
-    with target.open("w", encoding="utf-8", newline="") as f:
-        f.write(newline.join(lines))
+    _atomic_write_text(target, newline.join(lines))
     return False
 
 

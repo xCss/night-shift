@@ -9,6 +9,8 @@ import datetime as dt
 import subprocess
 import sys
 import tempfile
+import os
+import time
 import unittest
 from pathlib import Path
 
@@ -408,8 +410,6 @@ class AppendTests(unittest.TestCase):
     def _sample_markdown(self) -> str:
         return ("# 夜班C 交班记录\n"
                 "\n"
-                "- 班次日期：2026-09-11 23:00\n"
-                "\n"
                 "## 今晚发现\n"
                 "\n"
                 "- x\n"
@@ -691,6 +691,86 @@ class SafeStdoutTests(unittest.TestCase):
             import inspect
             source = inspect.getsource(mod.main)
             self.assertIn("ensure_safe_stdout", source, mod.__name__)
+
+class AppendLockTests(unittest.TestCase):
+    """--append 并发锁：串行化 + 陈旧锁接管 + 原子写无残留。"""
+
+    def _sample_markdown(self) -> str:
+        return ("# 夜班C 交班记录\n"
+                "\n"
+                "## 今晚发现\n"
+                "\n"
+                "- x\n"
+                "\n"
+                "---\n"
+                "*生成*")
+
+    def test_lock_contention_times_out_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "h.md"
+            target.write_text("# 已有\n", encoding="utf-8")
+            lock = target.parent / "h.md.lock"
+            lock.write_text("9999", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                shift_report.append_to_handoff(
+                    target, self._sample_markdown(), "## 2026-09-12 夜班C",
+                    lock_timeout=0.2)
+            self.assertTrue(lock.exists())  # 他人的锁不被误删
+            self.assertEqual(target.read_text(encoding="utf-8"), "# 已有\n")
+
+    def test_stale_lock_is_taken_over(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "h.md"
+            target.write_text("# 已有\n", encoding="utf-8")
+            lock = target.parent / "h.md.lock"
+            lock.write_text("9999", encoding="utf-8")
+            stale = time.time() - 120  # 2 分钟前的锁：持锁进程已崩溃
+            os.utime(lock, (stale, stale))
+            created = shift_report.append_to_handoff(
+                target, self._sample_markdown(), "## 2026-09-12 夜班C",
+                lock_timeout=1.0)
+            self.assertFalse(created)
+            self.assertFalse(lock.exists())  # 用完即释放
+            self.assertIn("2026-09-12 夜班C",
+                          target.read_text(encoding="utf-8"))
+
+    def test_no_tmp_residue_after_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "h.md"
+            shift_report.append_to_handoff(
+                target, self._sample_markdown(), "## 2026-09-12 夜班C")
+            self.assertEqual([q.name for q in Path(tmp).iterdir()], ["h.md"])
+
+    def test_two_processes_append_both_survive(self) -> None:
+        # P1 事故场景复盘：两班次同时 --append 同一文档，先写者曾被无痕覆盖
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "h.md"
+            target.write_text("# 夜班C交班记录\n", encoding="utf-8")
+            script = Path(__file__).resolve().parent.parent / "tools" / "shift_report.py"
+            make = ("import sys; from pathlib import Path;"
+                    "sys.path.insert(0, r'{tools}');"
+                    "import shift_report;"
+                    "shift_report.append_to_handoff("
+                    "Path(r'{target}'), '# X 交班记录' + chr(10) + chr(10)"
+                    "+ '## 今晚发现' + chr(10) + chr(10) + '- {tag}',"
+                    "'## 2026-09-12 夜班{tag}')")
+            tools_dir = str(script.parent)
+            procs = []
+            for tag in ("A", "B"):
+                code = make.format(tools=tools_dir, target=target, tag=tag)
+                procs.append(subprocess.Popen(
+                    [sys.executable, "-c", code],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                    text=True, encoding="utf-8", errors="replace"))
+            errs = []
+            for proc in procs:
+                _, err = proc.communicate(timeout=30)
+                if proc.returncode != 0:
+                    errs.append(err)
+            self.assertEqual(errs, [])  # 任何一方都不应失败
+            text = target.read_text(encoding="utf-8")
+            self.assertIn("- A", text)  # 双方记录都幸存
+            self.assertIn("- B", text)
 
 
 if __name__ == "__main__":
