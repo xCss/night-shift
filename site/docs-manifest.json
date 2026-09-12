@@ -1,0 +1,65 @@
+{
+ "generated": "2026-09-12 09:46",
+ "docs": [
+  {
+   "path": "README.md",
+   "dir": "根目录",
+   "size": 5847,
+   "mtime": "2026-09-12 09:44"
+  },
+  {
+   "path": "memory/long-term-memory.md",
+   "dir": "memory",
+   "size": 6113,
+   "mtime": "2026-09-12 09:02"
+  },
+  {
+   "path": "memory/project-status.md",
+   "dir": "memory",
+   "size": 7020,
+   "mtime": "2026-09-12 09:44"
+  },
+  {
+   "path": "handoff/2026-09-11-夜班C.md",
+   "dir": "handoff",
+   "size": 5751,
+   "mtime": "2026-09-11 23:33"
+  },
+  {
+   "path": "handoff/night-shift-a-handoff.md",
+   "dir": "handoff",
+   "size": 5721,
+   "mtime": "2026-09-12 08:28"
+  },
+  {
+   "path": "handoff/night-shift-b-handoff.md",
+   "dir": "handoff",
+   "size": 11507,
+   "mtime": "2026-09-12 00:08"
+  },
+  {
+   "path": "handoff/night-shift-c-handoff.md",
+   "dir": "handoff",
+   "size": 17527,
+   "mtime": "2026-09-12 08:13"
+  },
+  {
+   "path": "handoff/night-shift-d-handoff.md",
+   "dir": "handoff",
+   "size": 6716,
+   "mtime": "2026-09-12 08:38"
+  },
+  {
+   "path": "logs/2026-09-11.md",
+   "dir": "logs",
+   "size": 10860,
+   "mtime": "2026-09-12 08:29"
+  },
+  {
+   "path": "logs/2026-09-12.md",
+   "dir": "logs",
+   "size": 5980,
+   "mtime": "2026-09-12 09:44"
+  }
+ ]
+}

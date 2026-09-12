@@ -96,6 +96,18 @@ python tools/night_web.py              # 生成 site/index.html
 python tools/night_web.py --serve      # 本地 http://127.0.0.1:8800 预览
 ```
 
+### `tools/night_docs.py` — 夜班图书馆（HTML+JS 文档聚合阅读器）
+
+把 memory/、handoff/、logs/ 的全部 Markdown（含 README）聚合成一个
+可浏览、可搜索的静态页面：侧栏按目录分组导航、标题过滤、内置迷你
+Markdown 渲染器（标题/列表/围栏代码/引用/表格/行内样式，先转义再渲染，
+无注入面）。Python 生成 site/docs.html + docs-manifest.json；阅读需 HTTP
+（GitHub Pages 或 `--serve` 本地预览）。
+
+```bash
+python tools/night_docs.py --serve    # http://127.0.0.1:8801/site/docs.html
+```
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。

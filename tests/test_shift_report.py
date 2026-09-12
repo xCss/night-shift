@@ -21,6 +21,7 @@ import shift_start  # noqa: E402
 import memory_check  # noqa: E402
 import night_web  # noqa: E402
 import morning_report  # noqa: E402
+import night_docs  # noqa: E402
 
 
 def git(repo: Path, *args: str) -> None:
@@ -826,8 +827,40 @@ class NightWebTests(unittest.TestCase):
         self.assertIn("<\\/script>", html_out)  # 数据里的 </ 已被转义
 
 
-if __name__ == "__main__":
-    unittest.main()
+class NightDocsTests(unittest.TestCase):
+    """night_docs.py：文档清单采集与页面内嵌。"""
+
+    def test_collect_docs_lists_and_excludes_generated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "memory").mkdir()
+            (repo / "handoff").mkdir()
+            (repo / "memory" / "long-term-memory.md").write_text(
+                "# 记忆\n", encoding="utf-8")
+            (repo / "handoff" / "2026-09-12-morning-report.md").write_text(
+                "# 晨报\n", encoding="utf-8")
+            (repo / "handoff" / "night-shift-c-handoff.md").write_text(
+                "# 交接\n", encoding="utf-8")
+            (repo / "README.md").write_text("# readme\n", encoding="utf-8")
+            docs = night_docs.collect_docs(repo)
+            paths = [d["path"] for d in docs]
+            self.assertEqual(paths[0], "README.md")  # README 置顶
+            self.assertIn("memory/long-term-memory.md", paths)
+            self.assertIn("handoff/night-shift-c-handoff.md", paths)
+            self.assertNotIn("handoff/2026-09-12-morning-report.md", paths)
+            for d in docs:
+                self.assertNotIn("\\", d["path"])  # 全部正斜杠相对路径
+
+    def test_build_html_embeds_manifest(self) -> None:
+        html_out = night_docs.build_html({
+            "generated": "g",
+            "docs": [{"path": "memory/m.md", "dir": "memory",
+                      "size": 10, "mtime": "2026-09-12 09:00"}],
+        })
+        self.assertIn("const DATA = ", html_out)
+        self.assertIn('"memory/m.md"', html_out)  # 清单内嵌进页面
+        self.assertEqual(html_out.count("</script>"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
