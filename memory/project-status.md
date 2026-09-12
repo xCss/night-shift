@@ -22,7 +22,9 @@
 - [x] 【P3】默认窗口跨午夜漏提交 → [2026-09-11，夜班B] 已解决：无参数时取最近一次 23:05（夜班窗口起点，`DEFAULT_SINCE`）。
 - [ ] 【P3】按班次配置章节集合：工具侧已完成（`--profile`/`--sections`，commit `a862b6e`，C 模板已登记）。**待办收窄为**：A/B/D 拿到各自协议权威模板后在 `tools/shift_report.py` 的 `PROFILES` 登记。
 - [x] 【P3】CI 未实测 → [2026-09-12，出版署] push 后 Actions 真实执行。首跑起连续暴露两个问题并当场修复：`test_append_preserves_crlf_line_endings` 平台缺陷（通用换行转换使 CRLF 检测失灵，Windows 靠写出翻译侥幸通过、Linux 上整份文档被改写成 LF，commit `9de819e`）；浅克隆致 memory_check 哈希校验全误报（改 `fetch-depth: 0`，commit `43f5641`）。三跑 CI 绿（3.12/3.13 unittest + memory_check）。
-- [x] 【P1】shift_report `--append` 无锁读改写 → [2026-09-12，夜班C] 已修复：O_CREAT|O_EXCL 锁文件+重试+陈旧锁（>60s）接管，写入临时文件后 os.replace 原子替换；原子写顺带修掉了 write_text 的 
+- [x] 【P1】shift_report `--append` 无锁读改写 → [2026-09-12，夜班C] 已修复：O_CREAT|O_EXCL 锁文件+重试+陈旧锁（>60s）接管，写入临时文件后 os.replace 原子替换；原子写顺带修掉了 write_text 的 
+
+
  双重翻译隐患。新增 4 项测试含两进程真实并发竞态验证（69/69 通过）。
 - [ ] 【P2】生成物写入非原子（shift_report 非 append 分支 / morning_report）：并发读可能拿到截断文档，致 memory_check 误报。修法同上（os.replace）。
 - [ ] 【P2】空仓库（无提交）运行任一工具会裸 traceback（rev-parse HEAD / git log exit 128 未捕获）。修法：check=False + 降级提示。
@@ -49,6 +51,6 @@
 ---
 
 - [2026-09-12] 夜班C续班收尾：`--shift-tag` 归属过滤与 `--profile`/`--sections` 章节配置入库（`a862b6e`），两项 P3 收窄为纯约定问题；建立 `logs/2026-09-12.md`。
-- [2026-09-12] 夜班C续班：新增 `tools/morning_report.py` 晨报生成器（夜班→人类交付闭环，`27d5278`）与 `tools/memory_check.py` 记忆体检工具（`4c6893b`，7 项测试）；`shift_start.py` 增加远程同步状态显示（`9314793`）。
+- [2026-09-12] 夜班C续班：发明夜班驾驶舱 `tools/night_web.py`（HTML+JS 静态面板，泳道时间轴/健康度/待确认卡片，GitHub Pages 可用，经浏览器截图验收）与 `tools/morning_report.py` 晨报生成器（夜班→人类交付闭环，`27d5278`）与 `tools/memory_check.py` 记忆体检工具（`4c6893b`，7 项测试）；`shift_start.py` 增加远程同步状态显示（`9314793`）。
 
 *最后更新：2026-09-11 夜班B（第二次值班）*

@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 import shift_report  # noqa: E402
 import shift_start  # noqa: E402
 import memory_check  # noqa: E402
+import night_web  # noqa: E402
 import morning_report  # noqa: E402
 
 
@@ -772,6 +773,61 @@ class AppendLockTests(unittest.TestCase):
             self.assertIn("- A", text)  # 双方记录都幸存
             self.assertIn("- B", text)
 
+
+class NightWebTests(unittest.TestCase):
+    """night_web.py：泳道归属与气泡定位。"""
+
+    def test_collect_commits_full_assigns_lanes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp), commits=0)
+            for subject in ("[C] C 的提交", "无标记提交", "[b] 小写"):
+                (repo / f"f{subject[1]}.txt").write_text("x\n", encoding="utf-8")
+                git(repo, "add", ".")
+                git(repo, "commit", "-q", "-m", subject)
+            commits = night_web.collect_commits_full(
+                repo, shift_report.git_since_iso(
+                    dt.datetime.now() - dt.timedelta(hours=1)))
+            lanes = [c["lane"] for c in commits]
+            self.assertEqual(lanes, ["C", "未标记", "B"])  # 时间正序
+
+    def test_build_html_embeds_data_and_js_clamp(self) -> None:
+        commits = [
+            {"hash": "abc", "author": "a", "subject": "s",
+             "date": "2026-09-12T10:00:00", "lane": "C"},
+        ]
+        html_out = night_web.build_html({
+            "repo": "demo", "generated": "g", "since": "s",
+            "branch": "main", "commits": commits, "added": 1,
+            "deleted": 0, "files": 1, "tests_ok": True,
+            "tests_tail": ["OK"], "memory_ok": True,
+            "pending": [{"file": "memory/m.md", "line": 3,
+                         "item": "【待确认】x"}],
+            "remote": "与远程同步", "handoffs": ["handoff/a.md"],
+            "logs": ["logs/2026-09-12.md"],
+        })
+        self.assertIn("const DATA = ", html_out)          # 数据内嵌
+        self.assertIn("Math.min(100", html_out)           # 右端钳制在 JS
+        self.assertIn('pos = isNaN(t) ? 0 :', html_out)   # 坏时间戳钳到左端
+        self.assertIn('href="../${esc(f)}"', html_out)    # 链接是相对路径
+        self.assertNotIn("D:\\\\", html_out)              # 绝对路径禁入页面
+
+    def test_build_html_escapes_data(self) -> None:
+        # 提交信息含 </script> 时不得逃逸出数据标签（标准 <\/ 转义）
+        html_out = night_web.build_html({
+            "repo": "demo", "generated": "g", "since": "s", "branch": "b",
+            "commits": [{"hash": "abc", "author": "a",
+                         "subject": "</script>alert(1)",
+                         "date": "2026-09-12T10:00:00", "lane": "C"}],
+            "added": 0, "deleted": 0, "files": 0, "tests_ok": None,
+            "tests_tail": [], "memory_ok": None, "pending": [],
+            "remote": "r", "handoffs": [], "logs": [],
+        })
+        self.assertEqual(html_out.count("</script>"), 1)  # 仅模板自身结尾
+        self.assertIn("<\\/script>", html_out)  # 数据里的 </ 已被转义
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 if __name__ == "__main__":
     unittest.main()

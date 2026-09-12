@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>夜班驾驶舱</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: linear-gradient(160deg,#0b1020,#141b34 60%,#1a1440);
+         color:#dfe3ee; font:15px/1.6 "Segoe UI","Microsoft YaHei",sans-serif;
+         min-height:100vh; padding:32px; }
+  h1 { font-size:26px; letter-spacing:1px; }
+  h1 small { color:#8a93b2; font-size:14px; font-weight:normal; margin-left:12px; }
+  h2 { font-size:16px; color:#aeb8dd; margin:0 0 12px;
+       border-left:3px solid #5b6cff; padding-left:10px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+          gap:16px; margin:20px 0; }
+  .card { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.09);
+          border-radius:12px; padding:16px 18px; }
+  .card .k { color:#8a93b2; font-size:12px; letter-spacing:1px; }
+  .card .v { font-size:22px; margin-top:6px; }
+  .v.good { color:#7ce8c1; } .v.bad { color:#ff9ecb; }
+  section { background:rgba(255,255,255,.04); border-radius:14px;
+            padding:20px 22px; margin:18px 0; border:1px solid rgba(255,255,255,.08); }
+  .lane { display:flex; align-items:center; margin:10px 0; }
+  .lane-name { width:150px; flex:none; color:#aeb8dd; font-size:13px; }
+  .lane-name small { color:#68719a; margin-left:6px; }
+  .track { position:relative; flex:1; height:34px; background:rgba(255,255,255,.05);
+           border-radius:17px;
+           background-image:repeating-linear-gradient(90deg,transparent 0 9%,rgba(255,255,255,.12) 9% 10%); }
+  .dot { position:absolute; top:50%; width:13px; height:13px; border-radius:50%;
+         transform:translate(-50%,-50%); border:2px solid rgba(0,0,0,.4);
+         cursor:pointer; }
+  .dot:hover { transform:translate(-50%,-50%) scale(1.6); }
+  .track.axis { height:18px; background:none; color:#68719a; font-size:12px; }
+  .filters { margin:0 0 12px; }
+  .filters button { background:rgba(255,255,255,.07); color:#dfe3ee;
+                    border:1px solid rgba(255,255,255,.15); border-radius:14px;
+                    padding:3px 14px; margin-right:8px; cursor:pointer; font-size:13px; }
+  .filters button.active { background:#5b6cff; border-color:#5b6cff; }
+  table { border-collapse:collapse; width:100%; }
+  th,td { text-align:left; padding:6px 12px; border-bottom:1px solid rgba(255,255,255,.08); }
+  th { color:#8a93b2; font-weight:normal; font-size:13px; }
+  .pill { color:#0b1020; padding:2px 10px; border-radius:10px; font-weight:bold; font-size:13px; }
+  .pending-item { padding:8px 12px; border-radius:8px; margin:6px 0;
+                  background:rgba(255,158,203,.08); }
+  .pending-item.ok { background:rgba(124,232,193,.1); }
+  .pending-item small { display:block; color:#68719a; font-size:12px; }
+  ul { padding-left:20px; } li { margin:4px 0; }
+  a { color:#9db4ff; text-decoration:none; } a:hover { text-decoration:underline; }
+  code { background:rgba(255,255,255,.08); padding:1px 6px; border-radius:5px; font-size:13px; }
+  pre { background:rgba(0,0,0,.35); border-radius:8px; padding:12px; overflow:auto; font-size:12.5px; }
+  .empty { color:#68719a; padding:20px; text-align:center; }
+  footer { color:#5d6688; font-size:12.5px; margin-top:26px; text-align:center; }
+</style>
+</head>
+<body>
+<h1>🌙 夜班驾驶舱 <small id="subtitle"></small></h1>
+
+<div class="grid" id="cards"></div>
+
+<section>
+  <h2>提交时间轴</h2>
+  <div class="filters" id="filters"></div>
+  <div id="lanes"></div>
+  <p style="color:#68719a;font-size:12.5px;margin-top:8px">
+  悬停气泡查看详情 · 点击上方按钮筛选班次 · 泳道空隙越大说明该班次沉默越久</p>
+</section>
+
+<div class="grid">
+  <div class="card"><h2>班次贡献</h2><div id="stats"></div></div>
+  <div class="card"><h2>待人工确认</h2><div id="pending"></div></div>
+</div>
+
+<div class="grid">
+  <div class="card"><h2>最新交接文档</h2><ul id="handoffs"></ul></div>
+  <div class="card"><h2>最新夜班日志</h2><ul id="logs"></ul></div>
+</div>
+
+<section>
+  <h2>测试输出（末 6 行）</h2>
+  <pre id="tests"></pre>
+</section>
+
+<footer>night-shift autopilot · 数据由 tools/night_web.py 采集 · 纯静态 HTML+JS，GitHub Pages 即开即用</footer>
+
+<script>
+const DATA = {"repo": "night-shift", "generated": "2026-09-12 09:42", "since": "2026-09-11 23:05", "branch": "main", "commits": [{"hash": "49b4ef9", "author": "Cube", "date": "2026-09-11 23:08:19 +0800", "subject": "Initial commit", "lane": "未标记"}, {"hash": "23494ab", "author": "xCss", "date": "2026-09-11 23:25:45 +0800", "subject": "docs: 添加夜班持续工作协议 AGENTS.md", "lane": "未标记"}, {"hash": "c52db08", "author": "xCss", "date": "2026-09-11 23:27:14 +0800", "subject": "建立夜班记忆系统：长期记忆、项目状态、日志与交接结构", "lane": "未标记"}, {"hash": "1c5a274", "author": "xCss", "date": "2026-09-11 23:29:22 +0800", "subject": "记录 shift_report.py 自检结果并更正 AGENTS.md 入库事实", "lane": "未标记"}, {"hash": "a80df5b", "author": "xCss", "date": "2026-09-11 23:31:53 +0800", "subject": "添加交班记录生成器 shift_report.py 及单元测试", "lane": "未标记"}, {"hash": "359b47d", "author": "xCss", "date": "2026-09-11 23:34:31 +0800", "subject": "对齐 shift_report.py 章节与 AGENTS.md 交班协议字段", "lane": "未标记"}, {"hash": "20241b3", "author": "xCss", "date": "2026-09-11 23:34:48 +0800", "subject": "夜班C交班记录与记忆更新", "lane": "未标记"}, {"hash": "befa1a5", "author": "xCss", "date": "2026-09-11 23:35:10 +0800", "subject": "修复跨午夜 --since 负窗口：未来时间点回退一天", "lane": "未标记"}, {"hash": "427013b", "author": "xCss", "date": "2026-09-11 23:36:16 +0800", "subject": "统一 --since 语义为「该时刻最近一次出现」，修正测试与文档", "lane": "未标记"}, {"hash": "16e4535", "author": "xCss", "date": "2026-09-11 23:36:36 +0800", "subject": "添加 CI：push/PR 时在 Python 3.12/3.13 上自动运行单元测试", "lane": "未标记"}, {"hash": "b59f27c", "author": "xCss", "date": "2026-09-11 23:38:10 +0800", "subject": "README 同步 shift_report.py 现状：--since 最近一次语义与全部章节", "lane": "未标记"}, {"hash": "38b8ee6", "author": "xCss", "date": "2026-09-11 23:38:56 +0800", "subject": "夜班B交班：记忆更新、日志、B班交班记录", "lane": "未标记"}, {"hash": "4a077b7", "author": "xCss", "date": "2026-09-11 23:40:58 +0800", "subject": "添加开工自检工具 shift_start.py：检测并行班次活动风险", "lane": "未标记"}, {"hash": "9dba3b8", "author": "xCss", "date": "2026-09-11 23:44:57 +0800", "subject": "shift_report.py 新增 --append：直接产出持续交接文档", "lane": "未标记"}, {"hash": "8554444", "author": "xCss", "date": "2026-09-11 23:45:51 +0800", "subject": "shift_report.py 修复非 ASCII 文件名被转义显示（core.quotepath=off）", "lane": "未标记"}, {"hash": "a9df1c1", "author": "xCss", "date": "2026-09-11 23:48:06 +0800", "subject": "夜班C续班收尾：持续交班文档、项目状态与日志更新", "lane": "未标记"}, {"hash": "c471ab4", "author": "xCss", "date": "2026-09-11 23:49:05 +0800", "subject": "长期记忆：更新班次职责佐证（首夜实践已证实 A/B/C 定位）", "lane": "未标记"}, {"hash": "f1f26e9", "author": "xCss", "date": "2026-09-11 23:58:06 +0800", "subject": "修复评审发现的真实缺陷：参数校验、文件名净化、阈值判定与状态解析统一", "lane": "未标记"}, {"hash": "9b704f3", "author": "xCss", "date": "2026-09-12 00:02:57 +0800", "subject": "append_to_handoff 数据完整性：围栏感知、页脚分隔线、CRLF 保留", "lane": "未标记"}, {"hash": "78ca280", "author": "xCss", "date": "2026-09-12 00:05:39 +0800", "subject": "numstat 重命名条目展开 + --out/--append 以仓库根为基准 + auto_fill_tests 测试", "lane": "未标记"}, {"hash": "961f5a0", "author": "xCss", "date": "2026-09-12 00:09:09 +0800", "subject": "夜班B第二次值班交班：缺陷修复联赛三局、记忆/日志/交班记录更新", "lane": "未标记"}, {"hash": "6ba8e91", "author": "xCss", "date": "2026-09-12 00:10:03 +0800", "subject": "补同日重复生成不覆盖旧记录的集成测试（README 承诺此前零覆盖）", "lane": "未标记"}, {"hash": "a862b6e", "author": "xCss", "date": "2026-09-12 07:52:32 +0800", "subject": "shift_report.py 新增 --shift-tag 归属过滤与 --profile/--sections 章节配置", "lane": "未标记"}, {"hash": "1916376", "author": "xCss", "date": "2026-09-12 07:54:28 +0800", "subject": "[C] 交班文档追加 2026-09-12 章节（--profile C 生成，TODO 已补全）", "lane": "C"}, {"hash": "aea7d0d", "author": "xCss", "date": "2026-09-12 07:55:29 +0800", "subject": "[C] 收尾：项目状态收窄两项 P3，建立 09-12 日志", "lane": "C"}, {"hash": "9314793", "author": "xCss", "date": "2026-09-12 07:57:20 +0800", "subject": "[C] shift_start.py 增加远程同步状态显示（领先/落后提交数与未 push 的 CI 提醒）", "lane": "C"}, {"hash": "4c6893b", "author": "xCss", "date": "2026-09-12 08:00:14 +0800", "subject": "[C] 新增记忆体检工具 memory_check.py：自动化常设的记忆卫生检查", "lane": "C"}, {"hash": "43ca7e4", "author": "xCss", "date": "2026-09-12 08:01:07 +0800", "subject": "[C] 记录更新：memory_check 入库、常设任务工具化、09-12 日志与交班文档", "lane": "C"}, {"hash": "736d454", "author": "xCss", "date": "2026-09-12 08:02:03 +0800", "subject": "[C] CI 接入记忆体检：push/PR 时在 3.12 矩阵上运行 memory_check", "lane": "C"}, {"hash": "4a1e24c", "author": "xCss", "date": "2026-09-12 08:02:04 +0800", "subject": "[C] 日志补记 CI 接入记忆体检", "lane": "C"}, {"hash": "2791cc8", "author": "xCss", "date": "2026-09-12 08:03:51 +0800", "subject": "[C] memory_check 待确认识别精确化：逐行+行号+代码片段剔除；约定标记仅用于真实事项", "lane": "C"}, {"hash": "78538fc", "author": "xCss", "date": "2026-09-12 08:04:18 +0800", "subject": "[C] 交班文档增补 memory_check 与 CI 接入记录", "lane": "C"}, {"hash": "27d5278", "author": "xCss", "date": "2026-09-12 08:11:23 +0800", "subject": "[C] 发明晨报生成器 morning_report.py：夜班系统向人类的每日交付", "lane": "C"}, {"hash": "bb06579", "author": "xCss", "date": "2026-09-12 08:11:37 +0800", "subject": "[C] 日志与项目状态登记晨报发明", "lane": "C"}, {"hash": "b6c0aed", "author": "xCss", "date": "2026-09-12 08:11:52 +0800", "subject": "[C] 交班文档按约定修正「待确认」描述标记", "lane": "C"}, {"hash": "01cccda", "author": "xCss", "date": "2026-09-12 08:13:06 +0800", "subject": "[C] memory_check 排除晨报生成物：待确认清单不再逐日重复计数", "lane": "C"}, {"hash": "236e124", "author": "xCss", "date": "2026-09-12 08:13:58 +0800", "subject": "[C] 记忆体检职责归属夜班A：工具由C发明，日常执行归A（人工裁决分工）", "lane": "C"}, {"hash": "6caff76", "author": "xCss", "date": "2026-09-12 08:16:19 +0800", "subject": "[C] 修复 GBK 控制台下工具崩溃：stdout 不可编码字符降级而非中断", "lane": "C"}, {"hash": "77b3ed2", "author": "xCss", "date": "2026-09-12 08:17:04 +0800", "subject": "[C] shift_start 端到端 CLI 测试（临时仓库直接运行脚本）", "lane": "C"}, {"hash": "03a1cd4", "author": "xCss", "date": "2026-09-12 08:24:05 +0800", "subject": "[C] 修复审查发现 #1/#3：morning_report 复用 parse_since 统一校验、append 读取容错；10 条审查缺陷全部登记", "lane": "C"}, {"hash": "a0a8637", "author": "xCss", "date": "2026-09-12 08:29:23 +0800", "subject": "[A] 08:27 收尾：修正A交班记录已解决项、运行记忆体检、补记日志", "lane": "A"}, {"hash": "a049755", "author": "xCss", "date": "2026-09-12 08:38:08 +0800", "subject": "[D] 夜航杂志 2026-09-12（清晨版）：首夜全程汇编与交班", "lane": "D"}, {"hash": "857cc91", "author": "xCss", "date": "2026-09-12 08:52:43 +0800", "subject": "[出版署] 登记人工裁决：push 授权给出版署班次（08:50 同步），A/B/C/D 值班仍不 push", "lane": "未标记"}, {"hash": "9de819e", "author": "xCss", "date": "2026-09-12 08:57:34 +0800", "subject": "[出版署] 修复 CI 首跑暴露的 CRLF 平台缺陷：append_to_handoff 读写均禁用通用换行转换", "lane": "未标记"}, {"hash": "43f5641", "author": "xCss", "date": "2026-09-12 08:59:44 +0800", "subject": "[出版署] CI 改为完整检出（fetch-depth 0）：浅克隆导致 memory_check 哈希校验全部误报", "lane": "未标记"}, {"hash": "94ae1ab", "author": "xCss", "date": "2026-09-12 09:02:07 +0800", "subject": "[出版署] 收尾登记：CI 实测了结、出版署班次日志（08:50 窗口）", "lane": "未标记"}, {"hash": "42cc97d", "author": "xCss", "date": "2026-09-12 09:02:48 +0800", "subject": "[C] 人工裁决入库：班次职责定案（A记忆/B联赛/C发明/D记录），push 归出版署；待确认清零", "lane": "C"}, {"hash": "768e66b", "author": "xCss", "date": "2026-09-12 09:02:57 +0800", "subject": "[C] 重新生成晨报：待人工确认清零", "lane": "C"}, {"hash": "6c89be2", "author": "xCss", "date": "2026-09-12 09:17:33 +0800", "subject": "[C] 修复 P1：--append 并发锁与原子写", "lane": "C"}], "added": 4021, "deleted": 791, "files": 21, "tests_ok": true, "tests_tail": ["........................................................................", "----------------------------------------------------------------------", "Ran 72 tests in 9.702s", "", "OK"], "memory_ok": true, "pending": [], "remote": "领先 1 提交未 push", "handoffs": ["handoff/2026-09-12-morning-report-2-3.md", "handoff/night-shift-d-handoff.md", "handoff/night-shift-a-handoff.md"], "logs": ["logs/2026-09-12.md", "logs/2026-09-11.md"]};
+
+const COLORS = { A:"#7c9cff", B:"#ffb86c", C:"#7ce8c1", D:"#ff9ecb", "未标记":"#8a8f9d" };
+const NAMES = { A:"记忆基建", B:"棋手联赛", C:"无聊发明", D:"记录" };
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const badge = (ok, yes, no) => ok === null
+  ? '<span class="v">未运行</span>'
+  : `<span class="v ${ok ? "good" : "bad"}">${ok ? yes : no}</span>`;
+
+document.getElementById("subtitle").textContent =
+  `${DATA.repo} · 分支 ${DATA.branch} · 生成于 ${DATA.generated}`;
+
+// 健康度卡片
+const cards = [
+  ["单元测试", badge(DATA.tests_ok, "✅ 通过", "❌ 失败")],
+  ["记忆体检", badge(DATA.memory_ok, "✅ 通过", "❌ 有问题")],
+  ["待人工确认", `<span class="v ${DATA.pending.length ? "bad" : "good"}">${DATA.pending.length} 项</span>`],
+  ["远程同步", `<div class="v" style="font-size:15px">${esc(DATA.remote)}</div>`],
+  ["本窗口代码量", `<div class="v" style="font-size:15px">+${DATA.added} / -${DATA.deleted}<br>
+    <small style="color:#8a93b2">${DATA.files} 个文件 · ${DATA.commits.length} 提交</small></div>`],
+];
+document.getElementById("cards").innerHTML = cards.map(
+  ([k, v]) => `<div class="card"><div class="k">${k}</div>${v}</div>`).join("");
+
+// 时间轴：按班次泳道，气泡按时间定位
+const times = DATA.commits
+  .map(c => Date.parse(c.date)).filter(t => !isNaN(t));
+const tMin = times.length ? Math.min(...times) : 0;
+const tMax = times.length ? Math.max(...times) : 1;
+const lanes = {};
+for (const c of DATA.commits) (lanes[c.lane] = lanes[c.lane] || []).push(c);
+
+function laneOrder() {
+  const keys = Object.keys(lanes).filter(k => k !== "未标记").sort();
+  if (lanes["未标记"]) keys.push("未标记");
+  return keys;
+}
+function renderLanes(active) {
+  const el = document.getElementById("lanes");
+  if (!times.length) { el.innerHTML = '<div class="empty">窗口内没有提交</div>'; return; }
+  const fmt = t => { const d = new Date(t);
+    return `${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+  const span = Math.max(tMax - tMin, 1);
+  el.innerHTML = laneOrder().filter(k => active === "全部" || k === active)
+    .map(lane => {
+      const dots = lanes[lane].map(c => {
+        const t = Date.parse(c.date);
+        const pos = isNaN(t) ? 0 : Math.max(0, Math.min(100, (t - tMin) / span * 100));
+        return `<span class="dot" style="left:${pos.toFixed(2)}%;background:${COLORS[lane]}"
+          title="${esc(c.hash)} ${esc((c.date || "").slice(5, 16))} ${esc(c.subject)}"></span>`;
+      }).join("");
+      const name = NAMES[lane] || "未知";
+      return `<div class="lane"><div class="lane-name">${esc(lane)}
+        <small>${esc(name)}</small></div><div class="track">${dots}</div></div>`;
+    }).join("")
+    + `<div class="lane"><div class="lane-name"></div><div class="track axis">
+       <span style="position:absolute;left:0">${esc(fmt(tMin))}</span>
+       <span style="position:absolute;right:0">${esc(fmt(tMax))}</span></div></div>`;
+}
+const filters = document.getElementById("filters");
+const btns = ["全部", ...laneOrder()].map(l =>
+  `<button data-l="${esc(l)}">${esc(l)}</button>`).join("");
+filters.innerHTML = btns;
+let activeLane = "全部";
+filters.addEventListener("click", e => {
+  if (e.target.tagName !== "BUTTON") return;
+  activeLane = e.target.dataset.l;
+  filters.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("active", b.dataset.l === activeLane));
+  renderLanes(activeLane);
+});
+filters.querySelector("button").classList.add("active");
+renderLanes("全部");
+
+// 班次贡献
+document.getElementById("stats").innerHTML = `<table>
+  <tr><th>班次</th><th>提交数</th></tr>
+  ${laneOrder().map(l => `<tr><td>
+    <span class="pill" style="background:${COLORS[l]}">${esc(l)}</span></td>
+    <td>${lanes[l].length}</td></tr>`).join("")}</table>`
+  || '<div class="empty">无</div>';
+
+// 待人工确认
+document.getElementById("pending").innerHTML = DATA.pending.length
+  ? DATA.pending.map(p =>
+      `<div class="pending-item">⚠️ ${esc(p.item)}<small>${esc(p.file)}:${p.line}</small></div>`).join("")
+  : '<div class="pending-item ok">✅ 无待人工确认事项</div>';
+
+// 文档与日志入口（相对路径，GitHub Pages 可直接点开）
+const fileLink = f => `<li><a href="../${esc(f)}"><code>${esc(f)}</code></a></li>`;
+document.getElementById("handoffs").innerHTML =
+  DATA.handoffs.map(fileLink).join("") || "<li>暂无</li>";
+document.getElementById("logs").innerHTML =
+  DATA.logs.map(fileLink).join("") || "<li>暂无</li>";
+
+// 测试输出
+document.getElementById("tests").textContent =
+  DATA.tests_tail.length ? DATA.tests_tail.join("\n") : "（未运行）";
+</script>
+</body>
+</html>

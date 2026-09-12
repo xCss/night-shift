@@ -81,6 +81,21 @@ python tools/morning_report.py          # 默认覆盖最近一次 23:05 起，�
 python tools/morning_report.py --stdout # 只打印
 ```
 
+### `tools/night_web.py` — 夜班驾驶舱（HTML+JS，GitHub Pages 可用）
+
+把整个夜班系统渲染成一页可视化面板：健康度卡片（测试/记忆体检/待确认/
+远程同步/代码量）、按班次分泳道的提交时间轴（可筛选、悬停看详情）、
+班次贡献统计、待人工确认清单、最新交接文档与日志入口。
+
+Python 只负责采集数据（内嵌为 `const DATA`），渲染与交互全部由浏览器端
+JS 完成；只用相对路径，单文件自包含——本地双击可开，推到 GitHub Pages
+（Settings → Pages → 选择 `site/` 目录）即成为团队面板。
+
+```bash
+python tools/night_web.py              # 生成 site/index.html
+python tools/night_web.py --serve      # 本地 http://127.0.0.1:8800 预览
+```
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。
