@@ -80,8 +80,15 @@ def check_future_dates(text: str, today: dt.date) -> list[str]:
     return problems
 
 
-def find_pending_items(text: str) -> list[str]:
-    return [m.group(0) for m in PENDING_RE.finditer(text)]
+def find_pending_items(text: str) -> list[tuple[int, str]]:
+    """返回 (行号, 事项)。行内代码片段（`...`）中的【待确认】不算数，
+    那是文档在描述这个标记本身，不是真的待确认。"""
+    items: list[tuple[int, str]] = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        stripped = re.sub(r"`[^`]*`", "", line)
+        for m in PENDING_RE.finditer(stripped):
+            items.append((lineno, m.group(0)))
+    return items
 
 
 def main() -> None:
@@ -116,8 +123,8 @@ def main() -> None:
             issues += 1
         pending = find_pending_items(text)
         total_pending += len(pending)
-        for item in pending:
-            print(f"⏳ {rel}: {item}")
+        for lineno, item in pending:
+            print(f"⏳ {rel}:{lineno}: {item}")
             # 待确认不是错误，不计入 issues
 
     print(f"扫描 {len(files)} 个文件：{issues} 个问题，"

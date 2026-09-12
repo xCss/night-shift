@@ -62,6 +62,13 @@ python tools/shift_start.py --warn-minutes 30
 python tools/memory_check.py                 # 有问题 exit 1，可接 CI
 ```
 
+约定：【待确认】只用于标记真实待确认事项；描述性文字写「待确认」，
+避免体检误报。建议的收尾组合命令（交班记录自动带上测试与体检结果）：
+
+```bash
+python tools/shift_report.py --append --profile C --title "夜班C" --test   "python -m unittest discover -s tests && python tools/memory_check.py"
+```
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。

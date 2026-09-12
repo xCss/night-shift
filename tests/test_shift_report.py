@@ -586,9 +586,10 @@ class MemoryCheckTests(unittest.TestCase):
     def test_find_pending_items(self) -> None:
         text = ("- 【待确认】B/C/D 的具体职责。\n"
                 "- 已解决：~~【待确认】~~（光杆标签是噪音）\n"
-                "- 结论已确认，无待确认。\n")
+                "- 结论已确认，无待确认。\n"
+                "- 工具输出「`【待确认】汇总`」是文档描述，不是真事项。\n")
         got = memory_check.find_pending_items(text)
-        self.assertEqual(got, ["【待确认】B/C/D 的具体职责"])
+        self.assertEqual(got, [(1, "【待确认】B/C/D 的具体职责")])
 
     def test_cli_exit_codes_on_temp_repo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
