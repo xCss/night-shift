@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 import shift_report  # noqa: E402
 import shift_start  # noqa: E402
 import memory_check  # noqa: E402
+import morning_report  # noqa: E402
 
 
 def git(repo: Path, *args: str) -> None:
@@ -614,6 +615,40 @@ class MemoryCheckTests(unittest.TestCase):
                 encoding="utf-8", errors="replace")
             self.assertEqual(proc.returncode, 1)
             self.assertIn("deadbee", proc.stdout)
+
+class MorningReportTests(unittest.TestCase):
+    """morning_report.py：晨报的归属聚合与渲染。"""
+
+    def test_attribute_commits(self) -> None:
+        commits = [
+            {"hash": "a1", "subject": "[C] C的活"},
+            {"hash": "a2", "subject": "[b] 小写标记"},
+            {"hash": "a3", "subject": "没标记"},
+            {"hash": "a4", "subject": "[C] 又一件"},
+        ]
+        grouped = morning_report.attribute_commits(commits)
+        self.assertEqual(len(grouped["C"]), 2)
+        self.assertEqual(len(grouped["B"]), 1)  # 小写归一
+        self.assertEqual([c["hash"] for c in grouped["未标记"]], ["a3"])
+
+    def test_render_contains_core_sections(self) -> None:
+        summary = {
+            "commits": [{"hash": "abc12345", "subject": "[C] x"}],
+            "grouped": morning_report.attribute_commits(
+                [{"hash": "abc12345", "subject": "[C] x"}]),
+            "files": ["f.py"], "added": 1, "deleted": 0,
+        }
+        md = morning_report.render(
+            "demo", dt.datetime(2026, 9, 12, 8, 0),
+            dt.datetime(2026, 9, 11, 23, 5),
+            summary, True, "OK", True,
+            [("memory/long-term-memory.md", 12, "【待确认】职责")],
+        )
+        self.assertIn("## 一句话总览", md)
+        self.assertIn("## 需要你做的事（待人工确认）", md)
+        self.assertIn("- [ ] 【待确认】职责（memory/long-term-memory.md:12）", md)
+        self.assertIn("### 班次 C（1 个提交）", md)
+        self.assertNotIn("### 班次 未标记", md)  # 无未标记提交就不显示提示组
 
 
 if __name__ == "__main__":

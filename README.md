@@ -69,6 +69,18 @@ python tools/memory_check.py                 # 有问题 exit 1，可接 CI
 python tools/shift_report.py --append --profile C --title "夜班C" --test   "python -m unittest discover -s tests && python tools/memory_check.py"
 ```
 
+### `tools/morning_report.py` — 晨报（夜班→人类交付）
+
+夜班系统的最后一环：早上醒来的人一条命令看懂昨夜。聚合一个夜班窗口的
+全部提交（按 `[A]/[B]/[C]/[D]` 标记自动归属到班次）、代码量统计、现场
+运行的测试与记忆体检结果，以及跨文件汇总的**待人工确认清单**——这是
+晨报的核心：人对夜班系统唯一需要做的事就在这一节。
+
+```bash
+python tools/morning_report.py          # 默认覆盖最近一次 23:05 起，写入 handoff/
+python tools/morning_report.py --stdout # 只打印
+```
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。
