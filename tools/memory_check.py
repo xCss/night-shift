@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """夜班记忆体检工具（只读）。
 
+职责归属：记忆维护是夜班A的职责；本工具由夜班C发明，作为夜班A执行
+记忆维护时的自动化手段。CI 中也会自动运行（push/PR）。
+
 自动化 project-status.md 的常设任务「持续检查记忆文件的重复/冲突/过期
 信息」的一部分。扫描 memory/、handoff/、logs/ 下的 Markdown：
 
