@@ -108,6 +108,19 @@ Markdown 渲染器（标题/列表/围栏代码/引用/表格/行内样式，先
 python tools/night_docs.py --serve    # http://127.0.0.1:8801/site/docs.html
 ```
 
+### `tools/night_history.py` — 夜班大事记（全历史编年史页）
+
+按日聚合全部提交：各班次每日提交热力表 + 编年史（每日可展开明细）。
+驾驶舱看一个窗口，本页看积累——值班天数越多越有价值。
+
+```bash
+python tools/night_history.py            # 生成 site/history.html
+python tools/night_history.py --days 30  # 只看最近 30 天
+```
+
+site/ 三个页面互链：`index.html` 驾驶舱 · `docs.html` 图书馆 ·
+`history.html` 大事记。GitHub Pages 选择 `site/` 目录即可全部上线。
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。

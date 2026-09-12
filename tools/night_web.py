@@ -227,7 +227,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <pre id="tests"></pre>
 </section>
 
-<footer>night-shift autopilot · 数据由 tools/night_web.py 采集 · 纯静态 HTML+JS，GitHub Pages 即开即用</footer>
+<footer><a href="docs.html" style="color:#9db4ff">📚 图书馆</a> · <a href="history.html" style="color:#9db4ff">📅 大事记</a> · night-shift autopilot · 数据由 tools/night_web.py 采集 · 纯静态 HTML+JS，GitHub Pages 即开即用</footer>
 
 <script>
 const DATA = __DATA__;

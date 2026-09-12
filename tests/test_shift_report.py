@@ -22,6 +22,7 @@ import memory_check  # noqa: E402
 import night_web  # noqa: E402
 import morning_report  # noqa: E402
 import night_docs  # noqa: E402
+import night_history  # noqa: E402
 
 
 def git(repo: Path, *args: str) -> None:
@@ -860,6 +861,29 @@ class NightDocsTests(unittest.TestCase):
         self.assertIn("const DATA = ", html_out)
         self.assertIn('"memory/m.md"', html_out)  # 清单内嵌进页面
         self.assertEqual(html_out.count("</script>"), 1)
+
+class NightHistoryTests(unittest.TestCase):
+    """night_history.py：按日聚合与页面内嵌。"""
+
+    def test_group_by_day(self) -> None:
+        commits = [
+            {"hash": "a", "date": "2026-09-12T01:00:00", "subject": "x",
+             "lane": "C"},
+            {"hash": "b", "date": "2026-09-12T08:00:00", "subject": "y",
+             "lane": "C"},
+            {"hash": "c", "date": "2026-09-11T23:30:00", "subject": "z",
+             "lane": "未标记"},
+        ]
+        days = night_history.group_by_day(commits)
+        self.assertEqual([d["day"] for d in days],
+                         ["2026-09-12", "2026-09-11"])  # 新日期在前
+        self.assertEqual(len(days[0]["commits"]), 2)   # 日内时间正序
+
+    def test_build_html_embeds_data(self) -> None:
+        html_out = night_history.build_html({
+            "generated": "g", "commits": [], "days": []})
+        self.assertIn("const DATA = ", html_out)
+        self.assertIn("夜班大事记", html_out)
 
 
 if __name__ == "__main__":
