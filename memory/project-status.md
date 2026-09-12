@@ -51,6 +51,6 @@
 ---
 
 - [2026-09-12] 夜班C续班收尾：`--shift-tag` 归属过滤与 `--profile`/`--sections` 章节配置入库（`a862b6e`），两项 P3 收窄为纯约定问题；建立 `logs/2026-09-12.md`。
-- [2026-09-12] 夜班C续班：发明夜班三件套 `site/`（驾驶舱 night_web + 图书馆 night_docs + 大事记 night_history，全部 HTML+JS、相对路径、互链，GitHub Pages 选 site/ 目录即上线） `tools/night_docs.py`（Markdown 聚合阅读器，侧栏导航+标题过滤+客户端渲染）与夜班驾驶舱 `tools/night_web.py`（HTML+JS 静态面板，泳道时间轴/健康度/待确认卡片，GitHub Pages 可用，经浏览器截图验收） `tools/night_web.py`（HTML+JS 静态面板，泳道时间轴/健康度/待确认卡片，GitHub Pages 可用，经浏览器截图验收）与 `tools/morning_report.py` 晨报生成器（夜班→人类交付闭环，`27d5278`）与 `tools/memory_check.py` 记忆体检工具（`4c6893b`，7 项测试）；`shift_start.py` 增加远程同步状态显示（`9314793`）。
+- [2026-09-12] 夜班C续班：发明 site/ 可视化家族（驾驶舱 night_web + 图书馆 night_docs + 大事记 night_history + 出勤表 night_shifts + 星图 night_sky，全部 HTML+JS、相对路径、互链，GitHub Pages 选 site/ 即上线） `site/`（驾驶舱 night_web + 图书馆 night_docs + 大事记 night_history，全部 HTML+JS、相对路径、互链，GitHub Pages 选 site/ 目录即上线） `tools/night_docs.py`（Markdown 聚合阅读器，侧栏导航+标题过滤+客户端渲染）与夜班驾驶舱 `tools/night_web.py`（HTML+JS 静态面板，泳道时间轴/健康度/待确认卡片，GitHub Pages 可用，经浏览器截图验收） `tools/night_web.py`（HTML+JS 静态面板，泳道时间轴/健康度/待确认卡片，GitHub Pages 可用，经浏览器截图验收）与 `tools/morning_report.py` 晨报生成器（夜班→人类交付闭环，`27d5278`）与 `tools/memory_check.py` 记忆体检工具（`4c6893b`，7 项测试）；`shift_start.py` 增加远程同步状态显示（`9314793`）。
 
 *最后更新：2026-09-11 夜班B（第二次值班）*

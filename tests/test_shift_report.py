@@ -23,6 +23,7 @@ import night_web  # noqa: E402
 import morning_report  # noqa: E402
 import night_docs  # noqa: E402
 import night_history  # noqa: E402
+import night_sky  # noqa: E402
 
 
 def git(repo: Path, *args: str) -> None:
@@ -884,6 +885,34 @@ class NightHistoryTests(unittest.TestCase):
             "generated": "g", "commits": [], "days": []})
         self.assertIn("const DATA = ", html_out)
         self.assertIn("夜班大事记", html_out)
+
+
+class NightSkyTests(unittest.TestCase):
+    """night_sky.py：星图数据采集与页面内嵌。"""
+
+    def test_collect_stars_assigns_lanes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp), commits=0)
+            for i, subject in enumerate(
+                    ["[C] 星星一", "[C] 星星二", "旧提交无标记"]):
+                (repo / f"s{i}.txt").write_text("x\n", encoding="utf-8")
+                git(repo, "add", ".")
+                git(repo, "commit", "-q", "-m", subject)
+            stars = night_sky.collect_stars(repo, None)  # 全部历史
+            self.assertEqual([s["lane"] for s in stars],
+                             ["C", "C", "未标记"])
+            self.assertTrue(all(len(s["full"]) >= 40 for s in stars))
+
+    def test_build_html_embeds_and_escapes(self) -> None:
+        html_out = night_sky.build_html({
+            "repo": "demo",
+            "stars": [{"hash": "abc", "full": "f" * 40,
+                       "date": "2026-09-12T10:00:00",
+                       "subject": "</script>x", "lane": "C"}],
+        })
+        self.assertIn("const DATA = ", html_out)
+        self.assertEqual(html_out.count("</script>"), 1)  # 无标签逃逸
+        self.assertIn("hashRand", html_out)  # 稳定位置函数存在
 
 
 if __name__ == "__main__":

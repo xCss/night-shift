@@ -121,6 +121,18 @@ python tools/night_history.py --days 30  # 只看最近 30 天
 site/ 三个页面互链：`index.html` 驾驶舱 · `docs.html` 图书馆 ·
 `history.html` 大事记。GitHub Pages 选择 `site/` 目录即可全部上线。
 
+### `tools/night_shifts.py` / `tools/night_sky.py` — 出勤表与提交星图
+
+- **出勤表** `site/shifts.html`：从提交时间聚类反推各班次值班时段（间隔
+  ≤2h 同段），按日甘特图（0–24 时横轴）+ 累计在岗时长与提交密度。
+- **提交星图** `site/sky.html`：每次提交是一颗星（x=时间，y=哈希决定，
+  颜色=班次），同班次连成星座线，星星闪烁、偶有流星，悬停看详情。
+
+```bash
+python tools/night_shifts.py --days 14   # 出勤表
+python tools/night_sky.py                # 星图（全部历史）
+```
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。
