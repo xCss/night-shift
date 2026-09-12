@@ -47,7 +47,20 @@ python tools/shift_start.py                  # 只读，不改任何文件
 python tools/shift_start.py --warn-minutes 30
 ```
 
-最后提交距今不足阈值（默认 15 分钟）或工作区不干净时会给出并发警告。
+最后提交距今不足阈值（默认 15 分钟）或工作区不干净时会给出并发警告；
+同时显示与远程的领先/落后提交数，本地领先时提醒 CI 尚未运行。
+
+### `tools/memory_check.py` — 记忆体检
+
+自动化「持续检查记忆文件的重复/冲突/过期信息」的常设任务（只读）：
+
+- 校验 `memory/`、`handoff/`、`logs/` 中引用的提交哈希真实存在；
+- 汇总全部【待确认】事项的位置，供下一班次向人工一次性提问；
+- 发现未来日期的时间戳。
+
+```bash
+python tools/memory_check.py                 # 有问题 exit 1，可接 CI
+```
 
 ## 使用约定
 

@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 import shift_report  # noqa: E402
 import shift_start  # noqa: E402
+import memory_check  # noqa: E402
 
 
 def git(repo: Path, *args: str) -> None:
@@ -554,6 +555,64 @@ class ResolveSectionsTests(unittest.TestCase):
         )
         self.assertIn("## 今晚发明", md)
         self.assertNotIn("## 今晚比赛", md)
+
+
+class MemoryCheckTests(unittest.TestCase):
+    """memory_check.py：记忆体检的纯函数与仓库集成。"""
+
+    def test_known_hashes_from_revlist(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            known = memory_check.known_short_hashes(repo)
+            self.assertGreaterEqual(len(known), 2)  # 7 位 + 8 位短哈希
+
+    def test_check_hashes(self) -> None:
+        known = {"abc1234", "abc12345"}
+        self.assertEqual(memory_check.check_hashes("`abc1234` 引用", known), [])
+        self.assertEqual(memory_check.check_hashes("`deadbee` 引用", known),
+                         ["deadbee"])
+
+    def test_check_future_dates(self) -> None:
+        text = "记录于 2099-01-01，早先在 2020-01-01。"
+        got = memory_check.check_future_dates(text, dt.date(2026, 9, 12))
+        self.assertEqual(got, ["2099-01-01"])
+
+    def test_future_date_only_flags_valid_dates(self) -> None:
+        # 非法日期（如 2099-99-99）不误报，留给专门 linter
+        got = memory_check.check_future_dates("2099-99-99",
+                                              dt.date(2026, 9, 12))
+        self.assertEqual(got, [])
+
+    def test_find_pending_items(self) -> None:
+        text = ("- 【待确认】B/C/D 的具体职责。\n"
+                "- 已解决：~~【待确认】~~（光杆标签是噪音）\n"
+                "- 结论已确认，无待确认。\n")
+        got = memory_check.find_pending_items(text)
+        self.assertEqual(got, ["【待确认】B/C/D 的具体职责"])
+
+    def test_cli_exit_codes_on_temp_repo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            mem = repo / "memory"
+            mem.mkdir()
+            (mem / "m.md").write_text(
+                "# 记忆\n\n- [2026-09-11] 干净记录。\n", encoding="utf-8")
+            script = Path(__file__).resolve().parent.parent / "tools" / "memory_check.py"
+            proc = subprocess.run(
+                [sys.executable, str(script)],
+                cwd=repo, capture_output=True, text=True,
+                encoding="utf-8", errors="replace")
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+            (mem / "bad.md").write_text(
+                "# 坏记录\n\n- 引用 `deadbee` 这种不存在哈希。\n",
+                encoding="utf-8")
+            proc = subprocess.run(
+                [sys.executable, str(script)],
+                cwd=repo, capture_output=True, text=True,
+                encoding="utf-8", errors="replace")
+            self.assertEqual(proc.returncode, 1)
+            self.assertIn("deadbee", proc.stdout)
 
 
 if __name__ == "__main__":
