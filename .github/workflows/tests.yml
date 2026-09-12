@@ -13,6 +13,8 @@ jobs:
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 完整历史：memory_check 需用 rev-list 校验记忆文件引用的提交哈希
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
