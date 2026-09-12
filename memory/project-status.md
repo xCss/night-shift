@@ -22,6 +22,15 @@
 - [x] 【P3】默认窗口跨午夜漏提交 → [2026-09-11，夜班B] 已解决：无参数时取最近一次 23:05（夜班窗口起点，`DEFAULT_SINCE`）。
 - [ ] 【P3】按班次配置章节集合：工具侧已完成（`--profile`/`--sections`，commit `a862b6e`，C 模板已登记）。**待办收窄为**：A/B/D 拿到各自协议权威模板后在 `tools/shift_report.py` 的 `PROFILES` 登记。
 - [ ] 【P3】CI 未实测：未 push，workflow 未经 Actions 真实执行。push 授权后验证。
+- [ ] 【P1】shift_report `--append` 无锁读改写：两班次并发追加同一持续交接文档时，后写者覆盖先写者，记录无痕丢失。建议修法：写入前 O_CREAT|O_EXCL 锁文件+重试，写临时文件后 os.replace 原子替换。[2026-09-12 子代理审查发现]
+- [ ] 【P2】生成物写入非原子（shift_report 非 append 分支 / morning_report）：并发读可能拿到截断文档，致 memory_check 误报。修法同上（os.replace）。
+- [ ] 【P2】空仓库（无提交）运行任一工具会裸 traceback（rev-parse HEAD / git log exit 128 未捕获）。修法：check=False + 降级提示。
+- [ ] 【P3】morning_report 体检结论与失败明细脱节（子进程 stdout 被丢弃，体检失败时晨报看不出原因）；测试命令硬编码，宜加 --test 参数。
+- [ ] 【P3】memory_check known_short_hashes 把 rev-list 的 "commit <hash>" 头行词收进已知集合（`commit` 字样可通过哈希校验）；解析跳过头行即可。
+- [ ] 【P3】测试输出含 ``` 时破坏生成的 Markdown 围栏（auto_fill_tests / run_suite）；检测后改用四反引号。
+- [ ] 【P3】filter_by_shift_tag 用 8 位哈希 git show，前缀歧义时静默少算；collect_commits 保留全哈希并告警。
+- [x] 【P1】morning_report `--since 25:00` 崩溃、`--hours 0/-3` 错窗口 → [2026-09-12，夜班C] 已修复：改用 shift_report.parse_since 统一校验。
+- [x] 【P2】append_to_handoff 读文档无 errors 容错 → [2026-09-12，夜班C] 已修复：errors="replace"。
 - [ ] 【P3】shift_report 已知可接受限制（夜班B第二次值班评审记录，暂不修）：`--append AUTO` 哨兵值与同名文件冲突；status/numstat 对带引号路径（路径含特殊字符时）显示失真。
 
 ### 已完成

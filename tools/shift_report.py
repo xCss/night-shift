@@ -342,7 +342,8 @@ def append_to_handoff(target: Path, markdown: str, heading: str) -> bool:
         del body_lines[-2]
     body = "\n".join(body_lines).strip()
 
-    raw = target.read_text(encoding="utf-8")
+    # errors=replace：与其他读取点一致，坏字节不致命
+    raw = target.read_text(encoding="utf-8", errors="replace")
     # 保留原文档的行尾风格（Windows 检出常为 CRLF），避免产生全文件 diff
     newline = "\r\n" if "\r\n" in raw else "\n"
     lines = raw.splitlines()

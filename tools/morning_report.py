@@ -32,6 +32,7 @@ from memory_check import collect_markdown_files, find_pending_items  # noqa: E40
 import shift_report
 from shift_report import (  # noqa: E402
     _parse_numstat_text,
+    parse_since,
     collect_commits,
     collect_numstat,
     git_since_iso,
@@ -160,16 +161,7 @@ def main() -> None:
     repo_root = Path(run_git(repo, "rev-parse", "--show-toplevel").strip())
 
     moment = dt.datetime.now()
-    if args.since:
-        try:
-            hh, mm = map(int, args.since.split(":"))
-        except ValueError:
-            sys.exit(f"--since 需要 HH:MM 格式，收到: {args.since!r}")
-        since = most_recent(hh, mm, moment)
-    elif args.hours:
-        since = moment - dt.timedelta(hours=args.hours)
-    else:
-        since = most_recent(*((23, 5)), now=moment)  # 夜班窗口起点
+    since = shift_report.parse_since(args, moment)  # 复用统一校验与跨午夜语义
 
     summary = summarize(repo_root, since)
     tests_ok, tests_tail = run_suite(repo_root)
