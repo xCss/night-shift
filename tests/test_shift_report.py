@@ -321,6 +321,20 @@ class ShiftStartTests(unittest.TestCase):
             self.assertIsNone(
                 shift_start.remote_sync_status(repo, "main"))
 
+
+    def test_cli_end_to_end(self) -> None:
+        # 端到端：临时仓库里直接运行 shift_start，验证退出码与关键输出
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = make_repo(Path(tmp))
+            proc = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve().parent.parent
+                                     / "tools" / "shift_start.py")],
+                cwd=repo, capture_output=True, text=True,
+                encoding="utf-8", errors="replace")
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("开工自检", proc.stdout)
+            self.assertIn("工作区干净", proc.stdout)
+
     def test_staleness_recent(self) -> None:
         now = dt.datetime(2026, 9, 11, 23, 40)
         desc, recent = shift_start.describe_staleness(
