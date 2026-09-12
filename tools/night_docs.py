@@ -133,7 +133,7 @@ TEMPLATE = r"""<!DOCTYPE html>
     <div class="meta" id="docmeta"></div>
     <div id="body"></div>
   </div>
-  <footer><a href="index.html" style="color:#9db4ff">🎛️ 驾驶舱</a> · <a href="history.html" style="color:#9db4ff">📅 大事记</a><a href="shifts.html" style="color:#9db4ff">🛰️ 出勤表</a> · night-shift autopilot · tools/night_docs.py · Markdown 客户端渲染，GitHub Pages 即开即用</footer>
+  <footer><a href="index.html" style="color:#9db4ff">🎛️ 驾驶舱</a> · <a href="history.html" style="color:#9db4ff">📅 大事记</a><a href="shifts.html" style="color:#9db4ff">🛰️ 出勤表</a><a href="game.html" style="color:#9db4ff">🔮 模拟器</a> · night-shift autopilot · tools/night_docs.py · Markdown 客户端渲染，GitHub Pages 即开即用</footer>
 </main>
 <script>
 const DATA = __DATA__;

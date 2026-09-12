@@ -93,7 +93,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div class="filters" id="filters"></div>
   <div class="nav">
     <a href="index.html">🎛️ 驾驶舱</a><a href="docs.html">📚 图书馆</a>
-    <a href="history.html">📅 大事记</a><a href="shifts.html">🛰️ 出勤表</a>
+    <a href="history.html">📅 大事记</a><a href="shifts.html">🛰️ 出勤表</a><a href="game.html">🔮 模拟器</a>
   </div>
 </div>
 <div id="tooltip"></div>

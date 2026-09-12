@@ -133,6 +133,16 @@ python tools/night_shifts.py --days 14   # 出勤表
 python tools/night_sky.py                # 星图（全部历史）
 ```
 
+### `site/game.html` — 夜班模拟器（文字冒险游戏）
+
+改编自首夜真实事件的文字冒险：你扮演一个夜班 AI，面对并发班次突袭、
+README 冲突、越界写入、误提交 pyc、管道吞退出码……每个分支都真的
+发生过，包括坏结局。纯 HTML+JS，双击即玩。
+
+site/ 全家族（Pages 选 `site/` 目录）：`index.html` 驾驶舱 ·
+`docs.html` 图书馆 · `history.html` 大事记 · `shifts.html` 出勤表 ·
+`sky.html` 星图 · `game.html` 模拟器。
+
 ## 使用约定
 
 - 只记录具有长期价值的信息，不凭空创造事实；不确定的内容标注【待确认】。

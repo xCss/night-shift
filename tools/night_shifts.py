@@ -148,7 +148,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <div id="gantt"></div>
 </section>
 
-<footer>night-shift autopilot · tools/night_shifts.py · 纯静态 HTML+JS，GitHub Pages 即开即用</footer>
+<footer><a href="index.html">🎛️ 驾驶舱</a> · <a href="docs.html">📚 图书馆</a> · <a href="history.html">📅 大事记</a> · <a href="sky.html">✨ 星图</a> · <a href="game.html">🔮 模拟器</a> · night-shift autopilot · tools/night_shifts.py</footer>
 
 <script>
 const DATA = __DATA__;

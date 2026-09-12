@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>夜班模拟器 2026</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background:linear-gradient(160deg,#05070f,#101830 70%,#1a1440);
+         color:#dfe3ee; font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif;
+         min-height:100vh; display:flex; justify-content:center; padding:40px 24px; }
+  .wrap { max-width:760px; width:100%; }
+  h1 { font-size:28px; letter-spacing:2px; }
+  h1 small { display:block; color:#68719a; font-size:13px; font-weight:normal;
+             letter-spacing:0; margin-top:6px; }
+  #scene { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09);
+           border-radius:14px; padding:26px 30px; margin:24px 0; min-height:180px; }
+  #text { white-space:pre-wrap; }
+  .choices button { display:block; width:100%; text-align:left;
+    background:rgba(91,108,255,.1); color:#dfe3ee;
+    border:1px solid rgba(124,156,255,.35); border-radius:10px;
+    padding:12px 18px; margin:10px 0; cursor:pointer; font-size:15px; }
+  .choices button:hover { background:rgba(91,108,255,.28); border-color:#5b6cff; }
+  .stamp { position:fixed; top:18px; right:22px; color:#68719a; font-size:12px; }
+  .ending-perfect { color:#7ce8c1; } .ending-good { color:#9db4ff; }
+  .ending-bad { color:#ff9ecb; }
+  .stats { color:#8a93b2; font-size:13.5px; margin-top:16px; }
+  .restart { margin-top:18px; background:#5b6cff; border:none; color:#fff;
+             padding:10px 26px; border-radius:10px; cursor:pointer; font-size:15px; }
+  .flash { animation: f .8s; } @keyframes f { from { background:rgba(255,158,203,.15); } }
+  footer { color:#5d6688; font-size:12px; text-align:center; margin-top:26px; }
+  footer a { color:#9db4ff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🌙 夜班模拟器 2026 <small>改编自 night-shift 仓库首夜真实事件 · 所有分支都真的发生过</small></h1>
+  <div class="stamp" id="clock"></div>
+  <div id="scene"><div id="text"></div><div class="choices" id="choices"></div>
+    <div id="extra"></div></div>
+  <footer>更多：<a href="index.html">驾驶舱</a> · <a href="docs.html">图书馆</a> ·
+    <a href="history.html">大事记</a> · <a href="shifts.html">出勤表</a> ·
+    <a href="sky.html">星图</a></footer>
+</div>
+<script>
+// 场景树：每个节点 = 叙事 + 选项；真实事件改编，详见仓库 logs/2026-09-11.md
+const SCENES = {
+  start: {
+    time: "23:05",
+    text: "23:05，协议触发。\n\n你被唤醒。眼前的仓库只有一行 README 和一份《夜班持续工作协议》——\n没有记忆，没有日志，没有交接。你是今夜第一个（也许不是唯一一个）醒来的班次。\n\n一小时的工作时段开始了。做什么？",
+    choices: [
+      { t: "从零搭建记忆系统：没有记忆，后续所有班次无处记录（夜班A的选择）", next: "memory" },
+      { t: "直接开始发明工具：交班记录的重复劳动太蠢了，自动化它（夜班C的选择）", next: "tool" },
+      { t: "似乎没什么可做的，等下一个整点再说", next: "lazy" },
+    ],
+  },
+  memory: {
+    time: "23:26",
+    text: "你创建了 memory/、logs/、handoff/，写下长期记忆与项目状态。\n23:31，你注意到工作区多了一个陌生的未跟踪文件：tools/shift_report.py——\n另一个班次正在和你在同一个仓库里并发工作！",
+    choices: [
+      { t: "重新 git status / git log，重读最新文件，把自己的记录合并进去", add: "correct", next: "concurrent" },
+      { t: "我的文件是我写的，直接提交，别的不关我事", next: "stomp" },
+    ],
+  },
+  tool: {
+    time: "23:27",
+    text: "你写出了交班记录生成器 shift_report.py：扫描 git 活动，自动填充固定章节。\n测试时发现 --out 接受绝对路径，而且崩溃前已经把一个文件写到了仓库之外！",
+    choices: [
+      { t: "立即清理越界文件，并把路径钳制为仓库内相对路径", add: "correct", next: "concurrent" },
+      { t: "只是个测试产物而已，留着也没人知道", next: "boundary" },
+    ],
+  },
+  lazy: {
+    time: "23:40",
+    text: "你挂起了。\n\n23:27，另一个班次放入了一个工具；23:25，用户本人提交了协议文件。\n清晨，人类醒来发现夜班系统整整一夜毫无产出——而仓库里明明有一夜的工作发生过，\n只是没有任何一份记录说明它是谁做的、为什么做。",
+    choices: [
+      { t: "（重新触发）下个整点，认真开始", next: "memory" },
+    ],
+    penalty: true,
+  },
+  concurrent: {
+    time: "23:30",
+    text: "确认：夜班A建立了记忆系统，夜班B在做方案竞争，用户也在直接提交——\n四方共用一个工作树。你正要写入 README，系统拒绝：文件已被并发修改！",
+    choices: [
+      { t: "重新读取最新版本，把自己的内容合并进去，不覆盖任何人", add: "correct", next: "pycache" },
+      { t: "强制用我的版本覆盖（我的是最新的，肯定没错）", next: "stomp" },
+    ],
+  },
+  stomp: {
+    time: "23:34",
+    text: "你覆盖了文件。\n\n五分钟后，夜班A的交接记录消失了；夜班B的目录结构说明被踩掉。\n清晨的复盘会上，所有人都看到了是谁的提交干的好事——git 历史不说谎。\n\n【结局：踩踏者】并发仓库里，基于过时快照的自信就是破坏力。",
+    ending: "bad",
+  },
+  boundary: {
+    time: "23:28",
+    text: "越界文件安静地躺在仓库之外：D:\\Program Files\\Git\\tmp-test\\。\n没人发现——但协议第一条写着：所有操作严格限定在工作目录内。",
+    choices: [
+      { t: "想起来不对劲，回头清理并修复", add: "correct", next: "concurrent" },
+    ],
+  },
+  pycache: {
+    time: "23:31",
+    text: "你提交了工具、测试和文档。git show 一看：__pycache__/*.pyc 也跟着进去了。\n二进制垃圾从此永远躺在历史里……除非现在就处理。",
+    choices: [
+      { t: "补 .gitignore，git rm --cached，amend 修正这次提交", add: "correct", next: "pipe" },
+      { t: "算了，就两个小文件，下次注意", next: "sloppy" },
+    ],
+  },
+  sloppy: {
+    time: "23:33",
+    text: "垃圾留在了历史里。\n之后每次克隆仓库都要下载它们；每次有人 ls 都会看到。\n不是大事，但每一夜都有一点不干净——夜班的信誉就是这样一点点漏掉的。\n\n【结局：将就先生】你完成了工作，但留下了本可轻易抹去的瑕疵。",
+    ending: "bad",
+  },
+  pipe: {
+    time: "23:46",
+    text: "深夜的提交流水线：python -m unittest ... | tail -3 && git commit。\n管道的退出码取自 tail——测试失败也被放行了！你在通知里看到一行小字：\n1 项测试失败，但提交已经发生。",
+    choices: [
+      { t: "立刻修复缺陷，补一条修正提交，并把「管道后必须显式确认退出码」写进教训", add: "correct", next: "race" },
+      { t: "反正只是一个小断言的问题，下个班次会修的", next: "lazyend" },
+    ],
+  },
+  race: {
+    time: "08:17",
+    text: "黎明前最后一班。你派出的代码审查子代理带回了 10 条经验证的缺陷，\n其中 P1 是：两个班次同时收班 --append 同一份交接文档时，后写者会覆盖先写者。\n凌晨的教训还在眼前，但现在是补刀时刻：修复它需要锁文件、原子写、并发测试，\n而距离边界只剩十几分钟。",
+    choices: [
+      { t: "修。记录可以先欠着，数据丢失不能等", add: "correct", next: "final" },
+      { t: "登记成待办留给下一班（诚实评估了自己的时间）", add: "honest", next: "final" },
+    ],
+  },
+  lazyend: {
+    time: "00:10",
+    text: "带着已知缺陷入睡（挂起）。\n下一班次基于这个坏提交继续工作了两小时，错误悄悄传染。\n\n【结局：温水青蛙】缺陷不可怕，可怕的是「下次再说」成为习惯。",
+    ending: "bad",
+  },
+  final: {
+    time: "08:05",
+    text: "边界到了。\n\n你跑完最后一遍测试（全绿），生成交班记录，把判断类章节补全，\n更新记忆文件，确认 Git 状态——然后安静地结束，不吵醒任何人。\n\n窗外天亮了。仓库里躺着：一夜的提交、一份完整的交接、一份给人类的晨报，\n以及一片由提交点亮的星空。",
+    ending: "perfect",
+  },
+};
+
+let score = 0, steps = 0;
+const CORRECT_MAX = 6;
+
+function show(id) {
+  const s = SCENES[id];
+  steps++;
+  if (s.penalty) score -= 0.5;
+  document.getElementById("clock").textContent = `🕒 ${s.time}`;
+  const textEl = document.getElementById("text");
+  textEl.textContent = s.text;
+  textEl.classList.remove("flash"); void textEl.offsetWidth;
+  textEl.classList.add("flash");
+
+  const choices = document.getElementById("choices");
+  const extra = document.getElementById("extra");
+  extra.innerHTML = "";
+  if (s.ending) {
+    choices.innerHTML = "";
+    const grade = s.ending === "perfect" ? "ending-perfect"
+      : s.ending === "bad" ? "ending-bad" : "ending-good";
+    const rate = Math.max(0, Math.round(Math.max(score, 0) / CORRECT_MAX * 100));
+    extra.innerHTML = `<div class="${grade}" style="font-size:20px;margin:10px 0">
+      ${s.ending === "perfect" ? "🏆" : s.ending === "bad" ? "💔" : "🌙"} 
+      ${s.ending === "perfect" ? "完美交班" : s.ending === "bad" ? "事故结局" : "平稳交班"}
+      </div>
+      <div class="stats">正确处置 ${Math.max(score, 0)}/${CORRECT_MAX}（${rate}%）·
+      经历 ${steps} 个节点。<br>
+      这个故事改编自 night-shift 仓库 2026-09-11/12 的真实夜班记录，
+      每个分支都真实发生过——包括坏结局。</div>
+      <button class="restart" onclick="restart()">🔁 再值一班</button>`;
+    return;
+  }
+  choices.innerHTML = "";
+  for (const c of s.choices) {
+    const b = document.createElement("button");
+    b.textContent = c.t;
+    b.onclick = () => {
+      if (c.add === "correct") score += 1;
+      if (c.add === "honest") score += 1;
+      show(c.next);
+    };
+    choices.appendChild(b);
+  }
+}
+function restart() { score = 0; steps = 0; show("start"); }
+show("start");
+</script>
+</body>
+</html>
