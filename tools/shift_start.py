@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shift_report
 from shift_report import _parse_status_text, run_git  # noqa: E402
 
 
@@ -78,6 +79,7 @@ def remote_sync_status(repo: Path, branch: str) -> str | None:
 
 
 def main() -> None:
+    shift_report.ensure_safe_stdout()
     parser = argparse.ArgumentParser(description="夜班开工自检（只读）")
     parser.add_argument("--warn-minutes", type=int, default=15,
                         help="最后提交距今多少分钟内视为疑似并发活动（默认 15）")

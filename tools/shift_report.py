@@ -61,6 +61,18 @@ PROTOCOL_REQUIRED_SECTIONS = ["今晚比赛", "冠军方案", "未完成问题",
                               "下一轮建议", "建议C关注", "建议D记录"]
 
 
+def ensure_safe_stdout() -> None:
+    """Windows 控制台常为 GBK：emoji 等字符无法编码会直接崩溃。
+
+    降级策略：不可编码字符替换为 ?，工具不因输出装饰而中断。
+    """
+    try:
+        sys.stdout.reconfigure(errors="replace")
+        sys.stderr.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass  # 测试替身或非常规流可能不支持 reconfigure
+
+
 def run_git(repo: Path, *args: str, check: bool = True) -> str:
     result = subprocess.run(
         # core.quotepath=off：非 ASCII 文件名（如中文）按原样输出，不转义
@@ -438,6 +450,7 @@ def sanitize_filename_part(title: str) -> str:
 
 
 def main() -> None:
+    ensure_safe_stdout()
     parser = argparse.ArgumentParser(description="生成夜班交班记录")
     window = parser.add_mutually_exclusive_group()
     window.add_argument("--since", help="起点时间 HH:MM（取该时刻最近一次出现，支持跨午夜班次）")

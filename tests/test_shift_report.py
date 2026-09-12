@@ -650,6 +650,34 @@ class MorningReportTests(unittest.TestCase):
         self.assertIn("### 班次 C（1 个提交）", md)
         self.assertNotIn("### 班次 未标记", md)  # 无未标记提交就不显示提示组
 
+class SafeStdoutTests(unittest.TestCase):
+    """ensure_safe_stdout：GBK 等受限控制台下不因 emoji 崩溃。"""
+
+    def test_gbk_console_does_not_crash(self) -> None:
+        import io
+        # 模拟 Windows cmd 的 GBK 控制台流
+        stream = io.TextIOWrapper(io.BytesIO(), encoding="gbk",
+                                  errors="strict")
+        original = sys.stdout
+        sys.stdout = stream
+        try:
+            shift_report.ensure_safe_stdout()
+            print("✅⚠️⏳❌ emoji")  # strict 下本会 UnicodeEncodeError
+            stream.flush()
+        finally:
+            sys.stdout = original
+        data = stream.detach().getvalue()
+        self.assertTrue(data)  # 有输出（emoji 已降级为 ?）
+
+    def test_stdout_call_at_each_tool_main(self) -> None:
+        for mod in (shift_report, shift_start, memory_check, morning_report):
+            self.assertTrue(hasattr(mod.main, "__wrapped__")
+                            or callable(mod.main))
+            # 源码级确认 main 首行调用了 ensure_safe_stdout
+            import inspect
+            source = inspect.getsource(mod.main)
+            self.assertIn("ensure_safe_stdout", source, mod.__name__)
+
 
 if __name__ == "__main__":
     unittest.main()

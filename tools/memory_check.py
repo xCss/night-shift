@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shift_report
 from shift_report import run_git  # noqa: E402
 
 DEFAULT_DIRS = ("memory", "handoff", "logs")
@@ -99,6 +100,7 @@ def find_pending_items(text: str) -> list[tuple[int, str]]:
 
 
 def main() -> None:
+    shift_report.ensure_safe_stdout()
     parser = argparse.ArgumentParser(description="夜班记忆体检（只读）")
     parser.add_argument("--dirs", nargs="*", default=list(DEFAULT_DIRS),
                         help="扫描目录（默认 memory handoff logs）")

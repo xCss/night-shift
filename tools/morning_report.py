@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from memory_check import collect_markdown_files, find_pending_items  # noqa: E402
+import shift_report
 from shift_report import (  # noqa: E402
     _parse_numstat_text,
     collect_commits,
@@ -141,6 +142,7 @@ def render(repo_name: str, moment: dt.datetime, since: dt.datetime,
 
 
 def main() -> None:
+    shift_report.ensure_safe_stdout()
     parser = argparse.ArgumentParser(description="生成夜班晨报")
     window = parser.add_mutually_exclusive_group()
     window.add_argument("--since", help="起点时间 HH:MM（取该时刻最近一次出现）")
