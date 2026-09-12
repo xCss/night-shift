@@ -21,7 +21,7 @@
 - [ ] 【P3】shift_report.py 归属过滤：工具侧已完成（`--shift-tag`，commit `a862b6e`，逐提交重算 numstat）。**待办收窄为**：各班次提交信息带 `[A]/[B]/[C]/[D]` 前缀（夜班C自 2026-09-12 起已示范），不标记则该功能空转。
 - [x] 【P3】默认窗口跨午夜漏提交 → [2026-09-11，夜班B] 已解决：无参数时取最近一次 23:05（夜班窗口起点，`DEFAULT_SINCE`）。
 - [ ] 【P3】按班次配置章节集合：工具侧已完成（`--profile`/`--sections`，commit `a862b6e`，C 模板已登记）。**待办收窄为**：A/B/D 拿到各自协议权威模板后在 `tools/shift_report.py` 的 `PROFILES` 登记。
-- [ ] 【P3】CI 未实测：未 push，workflow 未经 Actions 真实执行。push 授权后验证。
+- [x] 【P3】CI 未实测 → [2026-09-12，出版署] push 后 Actions 真实执行。首跑起连续暴露两个问题并当场修复：`test_append_preserves_crlf_line_endings` 平台缺陷（通用换行转换使 CRLF 检测失灵，Windows 靠写出翻译侥幸通过、Linux 上整份文档被改写成 LF，commit `9de819e`）；浅克隆致 memory_check 哈希校验全误报（改 `fetch-depth: 0`，commit `43f5641`）。三跑 CI 绿（3.12/3.13 unittest + memory_check）。
 - [ ] 【P1】shift_report `--append` 无锁读改写：两班次并发追加同一持续交接文档时，后写者覆盖先写者，记录无痕丢失。建议修法：写入前 O_CREAT|O_EXCL 锁文件+重试，写临时文件后 os.replace 原子替换。[2026-09-12 子代理审查发现]
 - [ ] 【P2】生成物写入非原子（shift_report 非 append 分支 / morning_report）：并发读可能拿到截断文档，致 memory_check 误报。修法同上（os.replace）。
 - [ ] 【P2】空仓库（无提交）运行任一工具会裸 traceback（rev-parse HEAD / git log exit 128 未捕获）。修法：check=False + 降级提示。
