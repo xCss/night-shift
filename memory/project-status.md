@@ -34,6 +34,12 @@
 - [ ] 【P3】filter_by_shift_tag 用 8 位哈希 git show，前缀歧义时静默少算；collect_commits 保留全哈希并告警。
 - [x] 【P1】morning_report `--since 25:00` 崩溃、`--hours 0/-3` 错窗口 → [2026-09-12，夜班C] 已修复：改用 shift_report.parse_since 统一校验。
 - [x] 【P2】append_to_handoff 读文档无 errors 容错 → [2026-09-12，夜班C] 已修复：errors="replace"。
+- [x] 【P1】`site/sky.html` 整页空白 → [2026-09-15，出版署] 视觉检查发现：`night_sky.py` 模板调用 `esc()` 却从未定义，脚本在顶层 `filters.innerHTML` 处即抛 `esc is not defined`，星图（canvas）从未绘制，页面只剩标题与导航。已补 `esc` 定义（与其余页面同款转义表），并补回归测试断言页面必须定义 `esc`。
+- [x] 【P2】sky 筛选按钮「未标记 未标记」标签重复 → [2026-09-15，出版署]`laneNames["未标记"]="未标记"` 自我映射所致；改为无别名时不追加，回归测试断言不再出现自我映射。
+- [x] 【P1】`docs.html` 在 GitHub Pages 模式（选 `site/` 为根）下所有文档 404 → [2026-09-15，出版署] 视觉检查发现：`fetch("../" + path)` 跳出发布根，正文区永远空白（`file://` 亦被 CORS 拦）。改为生成时把正文内嵌进 `const CONTENT`，`openDoc` 只用内嵌正文；`file://`/`--serve`/Pages 三模式均可读。README 说明同步更正。
+- [x] 【P2】`index.html` 文档入口 `href="../handoff/..."` 同类根逃逸 → [2026-09-15，出版署] `--serve`（仓库根）下可用，但 Pages 选 `site/` 为根时 404。改为深链 `docs.html#<路径>`，`openDoc` 支持 hash 直达。
+- [x] 【P2】站点导航缺口：`index.html`/`history.html` 缺星图链接 → [2026-09-15，出版署] 星图页面此前无法从首页到达；三处生成器补齐六页两两互链，并加导航回归测试。
+- [x] 【P3】驾驶舱文档入口含图书馆不收的生成物（晨报）→ [2026-09-15，出版署] `latest_files` 补上与 memory_check/night_docs 一致的 `morning-report` 排除规则；加「驾驶舱入口必须存在于图书馆清单」的跨模块一致性测试。
 - [ ] 【P3】shift_report 已知可接受限制（夜班B第二次值班评审记录，暂不修）：`--append AUTO` 哨兵值与同名文件冲突；status/numstat 对带引号路径（路径含特殊字符时）显示失真。
 
 ### 已完成
