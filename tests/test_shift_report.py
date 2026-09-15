@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -23,6 +25,7 @@ import night_web  # noqa: E402
 import morning_report  # noqa: E402
 import night_docs  # noqa: E402
 import night_history  # noqa: E402
+import night_shifts  # noqa: E402
 import night_sky  # noqa: E402
 
 
@@ -793,6 +796,33 @@ class NightWebTests(unittest.TestCase):
             lanes = [c["lane"] for c in commits]
             self.assertEqual(lanes, ["C", "未标记", "B"])  # 时间正序
 
+    def test_latest_files_skips_generated_morning_report(self) -> None:
+        """晨报是生成物，图书馆不收；驾驶舱入口若收录会链到不存在的条目。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "handoff").mkdir()
+            (repo / "handoff" / "night-shift-a-handoff.md").write_text(
+                "x", encoding="utf-8")
+            (repo / "handoff" / "2026-09-12-morning-report.md").write_text(
+                "x", encoding="utf-8")
+            found = night_web.latest_files(repo, "handoff/*.md")
+            self.assertEqual(found, ["handoff/night-shift-a-handoff.md"])
+
+    def test_dashboard_doc_links_exist_in_library_manifest(self) -> None:
+        """跨模块一致性：驾驶舱给出的每个文档入口都必须在图书馆清单里。"""
+        root = Path(__file__).resolve().parent.parent
+        index = root / "site" / "index.html"
+        manifest = root / "site" / "docs-manifest.json"
+        if not (index.is_file() and manifest.is_file()):
+            self.skipTest("站点生成物不存在")
+        data = json.loads(re.search(
+            r"const DATA = (\{.*?\});\n",
+            index.read_text(encoding="utf-8"), re.S).group(1))
+        available = {d["path"] for d in json.loads(
+            manifest.read_text(encoding="utf-8"))["docs"]}
+        for f in data["handoffs"] + data["logs"]:
+            self.assertIn(f, available, f"驾驶舱入口 {f} 不在图书馆清单中")
+
     def test_build_html_embeds_data_and_js_clamp(self) -> None:
         commits = [
             {"hash": "abc", "author": "a", "subject": "s",
@@ -811,7 +841,9 @@ class NightWebTests(unittest.TestCase):
         self.assertIn("const DATA = ", html_out)          # 数据内嵌
         self.assertIn("Math.min(100", html_out)           # 右端钳制在 JS
         self.assertIn('pos = isNaN(t) ? 0 :', html_out)   # 坏时间戳钳到左端
-        self.assertIn('href="../${esc(f)}"', html_out)    # 链接是相对路径
+        # 交接/日志入口链到内嵌正文的图书馆（../ 会跳出 Pages 发布根）
+        self.assertIn('href="docs.html#${encodeURIComponent(f)}"', html_out)
+        self.assertNotIn('href="../', html_out)
         self.assertNotIn("D:\\\\", html_out)              # 绝对路径禁入页面
 
     def test_build_html_escapes_data(self) -> None:
@@ -863,6 +895,19 @@ class NightDocsTests(unittest.TestCase):
         self.assertIn('"memory/m.md"', html_out)  # 清单内嵌进页面
         self.assertEqual(html_out.count("</script>"), 1)
 
+    def test_content_is_embedded_so_pages_root_works(self) -> None:
+        """正文内嵌：Pages 选 site/ 目录时 ../path 会跳出根，必须不靠 fetch。"""
+        html_out = night_docs.build_html({
+            "generated": "g",
+            "docs": [{"path": "memory/m.md", "dir": "memory",
+                      "size": 10, "mtime": "2026-09-12 09:00"}],
+            "contents": {"memory/m.md": "# 标题\n正文"},
+        })
+        self.assertIn("const CONTENT = ", html_out)
+        self.assertIn("# 标题", html_out)          # 正文确实进了页面
+        self.assertNotIn("__CONTENT__", html_out)  # 占位符已替换
+        self.assertIn("CONTENT[path]", html_out)   # openDoc 优先用内嵌
+
 class NightHistoryTests(unittest.TestCase):
     """night_history.py：按日聚合与页面内嵌。"""
 
@@ -913,6 +958,58 @@ class NightSkyTests(unittest.TestCase):
         self.assertIn("const DATA = ", html_out)
         self.assertEqual(html_out.count("</script>"), 1)  # 无标签逃逸
         self.assertIn("hashRand", html_out)  # 稳定位置函数存在
+
+    def test_page_defines_esc_and_filter_labels_are_unique(self) -> None:
+        """曾出现 esc 未定义致整页空白；筛选按钮也不该重复标签。"""
+        html_out = night_sky.build_html(
+            {"repo": "demo", "stars": []})
+        self.assertIn("const esc =", html_out)   # esc 必须定义，否则悬停即抛错
+        self.assertIn('"未标记"', html_out)
+        # 「未标记」不应在 laneNames 里自我映射成重复文字
+        self.assertNotIn('"未标记":"未标记"', html_out)
+
+
+class SiteNavigationTests(unittest.TestCase):
+    """site/ 六页必须互链：任一同级页缺失链接都会让页面无法从导航到达。"""
+
+    # 生成器 -> 该页面应当链接到的同级页面
+    SIBLINGS = ("index.html", "docs.html", "history.html",
+                "shifts.html", "sky.html", "game.html")
+
+    def _built_pages(self) -> dict:
+        empty = {"generated": "g", "branch": "main", "remote": "",
+                 "commits": [], "files": 0, "added": 0, "deleted": 0,
+                 "tests_ok": None, "memory_ok": None, "pending": [],
+                 "handoffs": [], "logs": [], "docs": [], "contents": {},
+                 "stars": [], "days": [], "sessions": [], "since": "x"}
+        return {
+            "index.html": night_web.build_html(empty),
+            "docs.html": night_docs.build_html({"generated": "g", "docs": [],
+                                                "contents": {}}),
+            "history.html": night_history.build_html(empty),
+            "shifts.html": night_shifts.build_html(empty),
+            "sky.html": night_sky.build_html(empty),
+        }
+
+    def test_every_page_links_all_siblings(self) -> None:
+        for page, html_out in self._built_pages().items():
+            for sib in self.SIBLINGS:
+                if sib == page:
+                    continue
+                self.assertIn(f'href="{sib}"', html_out,
+                              f"{page} 缺少到 {sib} 的导航链接")
+
+    def test_no_page_escapes_published_root(self) -> None:
+        """Pages 以 site/ 为根：任何 ../ 链接/fetch 都会跳出发布范围而 404。"""
+        pages = dict(self._built_pages())
+        pages["docs.html"] = night_docs.build_html(
+            {"generated": "g",
+             "docs": [{"path": "memory/m.md", "dir": "memory",
+                       "size": 1, "mtime": "x"}],
+             "contents": {"memory/m.md": "# 标题"}})
+        for page, html_out in pages.items():
+            self.assertNotIn('href="../', html_out, f"{page} 含跳出根的 ../ 链接")
+            self.assertNotIn('fetch("../', html_out, f"{page} 含跳出根的 ../ fetch")
 
 
 if __name__ == "__main__":

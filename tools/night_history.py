@@ -102,7 +102,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <body>
 <h1>📅 夜班大事记 <small id="sub"></small></h1>
 <p style="margin:8px 0 0">
-  <a href="index.html">🎛️ 驾驶舱</a> · <a href="docs.html">📚 图书馆</a> · 本页 · <a href="shifts.html">🛰️ 出勤表</a><a href="game.html">🔮 模拟器</a></p>
+  <a href="index.html">🎛️ 驾驶舱</a> · <a href="docs.html">📚 图书馆</a> · 本页 · <a href="shifts.html">🛰️ 出勤表</a> · <a href="sky.html">✨ 星图</a> · <a href="game.html">🔮 模拟器</a></p>
 <section>
   <h2>各班次每日提交热力</h2>
   <div id="heat"></div>

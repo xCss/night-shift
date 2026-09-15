@@ -96,7 +96,10 @@ def collect_pending(repo: Path) -> list[dict]:
 
 
 def latest_files(repo: Path, pattern: str, count: int = 3) -> list[str]:
-    files = [f for f in repo.glob(pattern) if f.is_file()]
+    # 与 memory_check/night_docs 同一口径：morning-report 是生成物，不算文档，
+    # 否则页面入口会链到图书馆里并不存在的条目。
+    files = [f for f in repo.glob(pattern)
+             if f.is_file() and "morning-report" not in f.name]
     return [f.relative_to(repo).as_posix()
             for f in sorted(files, key=lambda f: f.stat().st_mtime,
                             reverse=True)[:count]]
@@ -227,7 +230,7 @@ TEMPLATE = r"""<!DOCTYPE html>
   <pre id="tests"></pre>
 </section>
 
-<footer><a href="docs.html" style="color:#9db4ff">📚 图书馆</a> · <a href="history.html" style="color:#9db4ff">📅 大事记</a><a href="shifts.html" style="color:#9db4ff">🛰️ 出勤表</a><a href="game.html" style="color:#9db4ff">🔮 模拟器</a> · night-shift autopilot · 数据由 tools/night_web.py 采集 · 纯静态 HTML+JS，GitHub Pages 即开即用</footer>
+<footer><a href="docs.html" style="color:#9db4ff">📚 图书馆</a> · <a href="history.html" style="color:#9db4ff">📅 大事记</a> · <a href="shifts.html" style="color:#9db4ff">🛰️ 出勤表</a> · <a href="sky.html" style="color:#9db4ff">✨ 星图</a> · <a href="game.html" style="color:#9db4ff">🔮 模拟器</a> · night-shift autopilot · 数据由 tools/night_web.py 采集 · 纯静态 HTML+JS，GitHub Pages 即开即用</footer>
 
 <script>
 const DATA = __DATA__;
@@ -319,8 +322,9 @@ document.getElementById("pending").innerHTML = DATA.pending.length
       `<div class="pending-item">⚠️ ${esc(p.item)}<small>${esc(p.file)}:${p.line}</small></div>`).join("")
   : '<div class="pending-item ok">✅ 无待人工确认事项</div>';
 
-// 文档与日志入口（相对路径，GitHub Pages 可直接点开）
-const fileLink = f => `<li><a href="../${esc(f)}"><code>${esc(f)}</code></a></li>`;
+// 文档与日志入口：链到图书馆的锚点。Pages 以 site/ 为根时 ../ 会跳出
+// 发布范围（fetch/链接均 404），故统一走 docs.html（正文已内嵌）。
+const fileLink = f => `<li><a href="docs.html#${encodeURIComponent(f)}"><code>${esc(f)}</code></a></li>`;
 document.getElementById("handoffs").innerHTML =
   DATA.handoffs.map(fileLink).join("") || "<li>暂无</li>";
 document.getElementById("logs").innerHTML =

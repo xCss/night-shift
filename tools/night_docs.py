@@ -10,8 +10,8 @@ Markdown，生成 site/docs.html + site/docs-manifest.json（相对路径清单�
     python tools/night_docs.py            # 生成 site/docs.html 与清单
     python tools/night_docs.py --serve    # 本地预览 http://127.0.0.1:8801/docs.html
 
-仅依赖标准库。注意：fetch 相对路径的 Markdown 在 GitHub Pages / 本地
-HTTP 服务下工作；直接双击 file:// 打开会被浏览器 CORS 拦截（用 --serve）。
+仅依赖标准库。正文在生成时内嵌进页面，不依赖相对路径：GitHub Pages
+（选 site/ 目录为根）、`--serve`、直接双击 file:// 三种方式都能读。
 """
 
 from __future__ import annotations
@@ -56,8 +56,12 @@ def collect_docs(repo: Path) -> list[dict]:
 
 
 def build_html(manifest: dict) -> str:
-    data_json = json.dumps(manifest, ensure_ascii=False).replace("</", "<\\/")
-    return TEMPLATE.replace("__DATA__", data_json)
+    contents = manifest.get("contents", {})
+    meta = {k: v for k, v in manifest.items() if k != "contents"}
+    data_json = json.dumps(meta, ensure_ascii=False).replace("</", "<\\/")
+    content_json = json.dumps(contents, ensure_ascii=False).replace("</", "<\\/")
+    return (TEMPLATE.replace("__DATA__", data_json)
+                    .replace("__CONTENT__", content_json))
 
 
 TEMPLATE = r"""<!DOCTYPE html>
@@ -133,10 +137,11 @@ TEMPLATE = r"""<!DOCTYPE html>
     <div class="meta" id="docmeta"></div>
     <div id="body"></div>
   </div>
-  <footer><a href="index.html" style="color:#9db4ff">🎛️ 驾驶舱</a> · <a href="history.html" style="color:#9db4ff">📅 大事记</a><a href="shifts.html" style="color:#9db4ff">🛰️ 出勤表</a><a href="game.html" style="color:#9db4ff">🔮 模拟器</a> · night-shift autopilot · tools/night_docs.py · Markdown 客户端渲染，GitHub Pages 即开即用</footer>
+  <footer><a href="index.html" style="color:#9db4ff">🎛️ 驾驶舱</a> · <a href="history.html" style="color:#9db4ff">📅 大事记</a> · <a href="shifts.html" style="color:#9db4ff">🛰️ 出勤表</a> · <a href="sky.html" style="color:#9db4ff">✨ 星图</a> · <a href="game.html" style="color:#9db4ff">🔮 模拟器</a> · night-shift autopilot · tools/night_docs.py · 正文内嵌，Pages 即开即用</footer>
 </main>
 <script>
 const DATA = __DATA__;
+const CONTENT = __CONTENT__;
 
 const esc = s => String(s).replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -192,27 +197,19 @@ function renderMd(src) {
     .replace(/(<tr>(?:(?!<\/table>).)*<\/tr>)(?!.*<table)/s, "$1</table>");
 }
 
-let currentFetch = null;
 async function openDoc(path, mtime, size) {
   document.getElementById("welcome").style.display = "none";
   const content = document.getElementById("content");
   content.style.display = "block";
   const body = document.getElementById("body");
-  body.innerHTML = '<div class="loading">加载中…</div>';
   document.getElementById("docmeta").textContent =
     `${path} · ${mtime} · ${(size / 1024).toFixed(1)} KB`;
-  try {
-    if (currentFetch) currentFetch.abort();
-    currentFetch = new AbortController();
-    const resp = await fetch("../" + path, { signal: currentFetch.signal });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    body.innerHTML = renderMd(await resp.text());
-  } catch (e) {
-    if (e.name === "AbortError") return;
-    body.innerHTML = `<p>加载失败：${esc(String(e))}<br>
-      本页需要 HTTP 服务（GitHub Pages 或 --serve 本地预览），直接双击
-      file:// 打开会被浏览器 CORS 拦截。</p>`;
-  }
+  // 正文随页面内嵌，不依赖任何相对路径：Pages 选 site/ 目录、--serve、
+  // 直接双击 file:// 三种方式都能读（../ 会跳出 Pages 发布根而 404）。
+  const embedded = CONTENT[path];
+  body.innerHTML = typeof embedded === "string"
+    ? renderMd(embedded)
+    : '<p class="loading">正文未随页面内嵌（生成时该文件不可读），请重新运行 tools/night_docs.py。</p>';
   content.scrollIntoView();
   document.querySelectorAll(".doc").forEach(d =>
     d.classList.toggle("active", d.dataset.path === path));
@@ -247,6 +244,13 @@ document.getElementById("back").addEventListener("click", () => {
 document.getElementById("sub").textContent =
   `${DATA.docs.length} 份文档 · 生成于 ${DATA.generated}`;
 buildToc("");
+
+// 支持 docs.html#<路径> 深链（驾驶舱的交接/日志入口指到这里）
+const hashPath = decodeURIComponent(location.hash.slice(1));
+if (hashPath) {
+  const meta = DATA.docs.find(d => d.path === hashPath);
+  if (meta) openDoc(meta.path, meta.mtime, meta.size);
+}
 </script>
 </body>
 </html>"""
@@ -268,9 +272,18 @@ def main() -> None:
         sys.exit("当前目录不是 git 仓库。")
     repo_root = Path(run_git(repo, "rev-parse", "--show-toplevel").strip())
 
+    docs = collect_docs(repo_root)
+    contents = {}
+    for d in docs:
+        try:
+            contents[d["path"]] = (repo_root / d["path"]).read_text(
+                encoding="utf-8", errors="replace")
+        except OSError:
+            continue  # 读不到则页面显示提示，不内嵌空正文
     manifest = {
         "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "docs": collect_docs(repo_root),
+        "docs": docs,
+        "contents": contents,
     }
     out_dir = (repo_root / args.out).resolve()
     try:

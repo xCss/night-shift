@@ -103,6 +103,8 @@ const DATA = __DATA__;
 
 const COLORS = { A:"#7c9cff", B:"#ffb86c", C:"#7ce8c1", D:"#ff9ecb",
                  "未标记":"#b9c4e0" };
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let activeLane = "全部";
 
 // 稳定伪随机：同一提交永远在同一片天空的同一位置
@@ -227,10 +229,10 @@ canvas.addEventListener("mousemove", e => {
 
 // 班次筛选
 const filters = document.getElementById("filters");
-const laneNames = { A:"记忆基建", B:"棋手联赛", C:"无聊发明", D:"记录", "未标记":"未标记" };
+const laneNames = { A:"记忆基建", B:"棋手联赛", C:"无聊发明", D:"记录" };
 const lanes = ["全部", ...new Set(DATA.stars.map(s => s.lane))];
 filters.innerHTML = lanes.map(l =>
-  `<button data-l="${esc(l)}">${esc(l)}${l === "全部" ? "" : " " + esc(laneNames[l] || "")}</button>`).join("");
+  `<button data-l="${esc(l)}">${esc(l)}${laneNames[l] ? " " + esc(laneNames[l]) : ""}</button>`).join("");
 filters.addEventListener("click", e => {
   if (e.target.tagName !== "BUTTON") return;
   activeLane = e.target.dataset.l;
